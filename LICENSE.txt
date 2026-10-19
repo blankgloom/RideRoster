@@ -1,0 +1,10 @@
+Copyright (c) 2026 Jefferson Steven Aragón Juárez e Instituto Nacional de Apopa.
+Todos los derechos reservados.
+
+Este software, denominado "RideRoster", es propiedad exclusiva de su autor 
+(Jefferson Steven Aragón Juárez) y de la institución educativa asociada. 
+
+Queda estrictamente prohibida la reproducción, distribución, modificación, 
+comercialización o uso de este software, parcial o total, por parte de 
+cualquier tercero ajeno a los titulares, sin la autorización previa y por escrito 
+de los mismos.

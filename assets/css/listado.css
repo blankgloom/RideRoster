@@ -1,0 +1,187 @@
+/* RideRoster · hoja de estilos del listado imprimible */
+
+.pagina-listado {
+    background: #e9eef5;
+    padding: 2rem 1rem;
+}
+
+.hoja {
+    max-width: 820px;
+    margin: 0 auto;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 2.25rem 2rem;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.hoja-cabecera {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #1e3a8a;
+}
+
+.hoja-institucion {
+    display: flex;
+    flex-direction: column;
+}
+
+.hoja-marca {
+    font-size: 1.125rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #1e3a8a;
+}
+
+.hoja-lugar {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.hoja-titulo {
+    text-align: right;
+}
+
+.hoja-titulo h1 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+}
+
+.hoja-titulo p {
+    font-size: 0.8125rem;
+    color: #64748b;
+    margin-top: 0.125rem;
+}
+
+.hoja-datos {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem 1.5rem;
+    margin: 1.25rem 0;
+    padding: 0.875rem 1rem;
+    background: #f8fafc;
+    border-radius: 8px;
+}
+
+.hoja-datos dt {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.hoja-datos dd {
+    margin: 0.125rem 0 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.hoja-tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+}
+
+.hoja-tabla thead th {
+    background: #1e3a8a;
+    color: #ffffff;
+    text-align: left;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 0.5rem 0.625rem;
+}
+
+.hoja-tabla thead th:first-child {
+    border-top-left-radius: 6px;
+}
+
+.hoja-tabla thead th:last-child {
+    border-top-right-radius: 6px;
+}
+
+.hoja-tabla tbody td {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0.4375rem 0.625rem;
+    vertical-align: middle;
+}
+
+.hoja-tabla tbody tr:nth-child(even) {
+    background: #f8fafc;
+}
+
+.celda-numero {
+    width: 52px;
+    font-weight: 600;
+}
+
+.hoja-nombre {
+    font-weight: 500;
+}
+
+.hoja-tutor {
+    display: block;
+    font-size: 0.6875rem;
+    color: #64748b;
+}
+
+.celda-firma {
+    width: 30%;
+    min-width: 120px;
+    background: #ffffff;
+}
+
+.hoja-pie {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.hoja-acciones {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+}
+
+@media print {
+    .pagina-listado {
+        background: #ffffff;
+        padding: 0;
+    }
+
+    .hoja {
+        max-width: none;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        padding: 0;
+    }
+
+    .hoja-acciones {
+        display: none;
+    }
+
+    .hoja-tabla thead {
+        display: table-header-group;
+    }
+
+    .hoja-tabla tbody tr {
+        break-inside: avoid;
+    }
+
+    @page {
+        size: letter portrait;
+        margin: 14mm 12mm;
+    }
+}

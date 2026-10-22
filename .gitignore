@@ -1,0 +1,17 @@
+# Sistema
+.DS_Store
+Thumbs.db
+*.log
+
+# Editores
+.idea/
+.vscode/
+*.swp
+
+# Configuración local
+.env
+.env.local
+
+# Herramientas
+.php-cs-fixer.cache
+.phpunit.result.cache

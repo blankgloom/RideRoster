@@ -1,0 +1,142 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit("Este script solo se ejecuta desde la linea de comandos.\n");
+}
+
+$raiz = dirname(__DIR__);
+
+require_once $raiz . '/app/config.php';
+require_once $raiz . '/app/database.php';
+require_once $raiz . '/app/migracion.php';
+require_once $raiz . '/app/semilla.php';
+
+$comando = $argv[1] ?? 'ayuda';
+
+function escribir(string $linea = ''): void
+{
+    fwrite(STDOUT, $linea . PHP_EOL);
+}
+
+function titulo(string $texto): void
+{
+    escribir();
+    escribir($texto);
+    escribir(str_repeat('-', mb_strlen($texto)));
+}
+
+function crear_base_de_datos(): void
+{
+    $cfg = app_config()['db'];
+    $servidor = db_servidor();
+    $servidor->exec(sprintf(
+        'CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
+        str_replace('`', '', $cfg['name'])
+    ));
+}
+
+function resumen_tabla(): array
+{
+    $tablas = ['paseos', 'viajes', 'pasajeros', 'pagos', 'personal_salvamento', 'asientos'];
+    $resumen = [];
+
+    foreach ($tablas as $tabla) {
+        if (!tabla_existe($tabla)) {
+            $resumen[$tabla] = 0;
+            continue;
+        }
+
+        $resumen[$tabla] = (int) db()->query('SELECT COUNT(*) FROM `' . $tabla . '`')->fetchColumn();
+    }
+
+    return $resumen;
+}
+
+function mostrar_resumen(): void
+{
+    titulo('Resumen de la base de datos');
+
+    foreach (resumen_tabla() as $tabla => $total) {
+        escribir(sprintf('  %-22s %d', $tabla, $total));
+    }
+}
+
+switch ($comando) {
+    case 'instalar':
+        titulo('Instalación de RideRoster');
+        $cfg = app_config()['db'];
+        escribir('Servidor:  ' . $cfg['host'] . ':' . $cfg['port']);
+        escribir('Base:     ' . $cfg['name']);
+        escribir('Usuario:  ' . $cfg['user']);
+
+        crear_base_de_datos();
+        escribir('Base de datos creada o verificada.');
+
+        aplicar_esquema_sql();
+        escribir('Esquema aplicado.');
+
+        aplicar_migraciones(true);
+        escribir('Migraciones aplicadas (version ' . parametro_int('esquema_version', 0) . ').');
+
+        $totalPaseos = (int) db()->query('SELECT COUNT(*) FROM paseos')->fetchColumn();
+        $totalViajes = (int) db()->query('SELECT COUNT(*) FROM viajes')->fetchColumn();
+
+        if ($totalPaseos === 0 && $totalViajes === 0) {
+            sembrar_datos(db());
+            escribir('Datos de demostracion cargados.');
+        } else {
+            escribir('Se conservaron los datos existentes (' . $totalPaseos . ' paseos, ' . $totalViajes . ' viajes).');
+        }
+
+        mostrar_resumen();
+        escribir();
+        escribir('Listo. Inicia el sistema con: php -S localhost:8080 -t ' . dirname(__DIR__));
+        break;
+
+    case 'migrar':
+        titulo('Actualizacion del esquema');
+        aplicar_migraciones(true);
+        escribir('Esquema actualizado (version ' . parametro_int('esquema_version', 0) . ').');
+        mostrar_resumen();
+        break;
+
+    case 'estado':
+        titulo('Estado del sistema');
+        $cfg = app_config()['db'];
+        escribir('Servidor:  ' . $cfg['host'] . ':' . $cfg['port']);
+        escribir('Base:     ' . $cfg['name']);
+        escribir('Usuario:  ' . $cfg['user']);
+
+        try {
+            db()->query('SELECT 1')->fetchColumn();
+            escribir('Conexion: correcta');
+            escribir('Esquema:  version ' . parametro_int('esquema_version', 0)
+                . ' (' . (tablas_principales_existen() ? 'completo' : 'incompleto') . ')');
+            mostrar_resumen();
+        } catch (Throwable $excepcion) {
+            escribir('Conexion: fallida');
+            escribir('Detalle:  ' . $excepcion->getMessage());
+            escribir();
+            escribir('Ejecuta "php bin/rideroster instalar" para preparar la base de datos.');
+        }
+        break;
+
+    case 'ayuda':
+    default:
+        titulo('RideRoster · herramienta de linea de comandos');
+        escribir();
+        escribir('Uso: php bin/rideroster <comando>');
+        escribir();
+        escribir('  instalar   Crea la base de datos, aplica el esquema y carga datos de demostracion');
+        escribir('  migrar     Actualiza el esquema sin borrar informacion');
+        escribir('  estado     Muestra la conexion y el resumen de la base de datos');
+        escribir('  ayuda      Muestra esta ayuda');
+        escribir();
+        escribir('Conexion: se toma de las variables de entorno DB_HOST, DB_PORT, DB_NAME, DB_USER y DB_PASS.');
+        escribir('Sin variables se usan los valores de XAMPP: 127.0.0.1:3306, base rideroster, usuario root.');
+        break;
+}

@@ -10,6 +10,9 @@
         viajeDetalle: null,
         mapa: null,
         asientoSeleccionado: null,
+        historialAsientos: [],
+        enfocarAlta: false,
+        enfocarCobro: null,
         programados: [],
         historial: [],
         paseos: [],
@@ -23,7 +26,9 @@
         desborde: null,
         salida: null,
         nuevosNombres: [],
-        filtroPaseos: ''
+        filtroPaseos: '',
+        estadisticas: null,
+        periodo: 'anual'
     };
 
     var asientoArrastrado = null;
@@ -112,6 +117,12 @@
         cheque: '<path d="M20 6 9.5 17 4 11.5"></path>',
         alerta: '<path d="M12 9v4.5"></path><path d="M12 17h.01"></path><path d="M10.3 4.2 2.9 17a2 2 0 0 0 1.7 3h14.8a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z"></path>',
         refrescar: '<path d="M20 11a8 8 0 1 0-.6 4"></path><path d="M20 4v6h-6"></path>',
+        raton: '<rect x="6.5" y="3" width="11" height="18" rx="5.5"></rect><path d="M12 3v6"></path>',
+        mover: '<path d="M5 9V5h4"></path><path d="M19 15v4h-4"></path><path d="M5 5l5 5"></path><path d="M19 19l-5-5"></path>',
+        deshacer: '<path d="M4 10h10a5 5 0 0 1 0 10h-3"></path><path d="M4 10l4-4"></path><path d="M4 10l4 4"></path>',
+        cobrar: '<rect x="2.5" y="6" width="19" height="12" rx="2"></rect><circle cx="12" cy="12" r="2.5"></circle><path d="M6 9.5v5"></path><path d="M18 9.5v5"></path>',
+        grafico: '<path d="M3.5 20.5h17"></path><rect x="5" y="12" width="3.5" height="6" rx="1"></rect><rect x="10.25" y="8" width="3.5" height="10" rx="1"></rect><rect x="15.5" y="4.5" width="3.5" height="13.5" rx="1"></rect>',
+        lista: '<path d="M8.5 6.5h12M8.5 12h12M8.5 17.5h12"></path><path d="M4 6.5h.01M4 12h.01M4 17.5h.01"></path>',
         cerrar: '<path d="M6 6l12 12M18 6L6 18"></path>'
     };
 
@@ -231,10 +242,55 @@
         });
     }
 
+    var peticionEstadisticas = 0;
+
+    function cargarEstadisticas(limpiar) {
+        var token = ++peticionEstadisticas;
+
+        if (limpiar) {
+            estado.estadisticas = null;
+
+            if (estado.vista === 'estadisticas') {
+                render();
+            }
+        }
+
+        return apiGet('estadisticas', { periodo: estado.periodo }).then(function (respuesta) {
+            if (token !== peticionEstadisticas) {
+                return;
+            }
+
+            estado.estadisticas = respuesta.datos;
+
+            if (estado.vista === 'estadisticas') {
+                render();
+            }
+        }).catch(function (error) {
+            if (token !== peticionEstadisticas) {
+                return;
+            }
+
+            estado.estadisticas = { error: error.message };
+
+            if (estado.vista === 'estadisticas') {
+                render();
+            }
+        });
+    }
+
     function render() {
         var contenedor = $('#contenido');
-        contenedor.innerHTML = estado.vista === 'inicio' ? vistaInicio() : vistaAdministracion();
+
+        if (estado.vista === 'estadisticas') {
+            contenedor.innerHTML = vistaEstadisticas();
+        } else if (estado.vista === 'administracion') {
+            contenedor.innerHTML = vistaAdministracion();
+        } else {
+            contenedor.innerHTML = vistaInicio();
+        }
+
         actualizarEstadoSistema();
+        actualizarTemporizador();
     }
 
     function actualizarEstadoSistema() {
@@ -255,12 +311,89 @@
         texto.textContent = 'Sin viaje activo';
     }
 
+    function formatearCuentaAtras(milisegundos) {
+        var total = Math.max(0, Math.floor(milisegundos / 1000));
+        var dias = Math.floor(total / 86400);
+        var horas = Math.floor((total % 86400) / 3600);
+        var minutos = Math.floor((total % 3600) / 60);
+        var segundos = total % 60;
+
+        var reloj = [horas, minutos, segundos].map(function (bloque) {
+            return String(bloque).padStart(2, '0');
+        }).join(':');
+
+        return dias > 0 ? dias + ' d ' + reloj : reloj;
+    }
+
+    function actualizarTemporizador() {
+        var contenedor = $('#temporizador');
+
+        if (!contenedor) {
+            return;
+        }
+
+        var viaje = estado.viajeDetalle || estado.viajeActual;
+
+        if (!viaje || !viaje.fecha || viaje.estado === 'finalizado') {
+            contenedor.hidden = true;
+            return;
+        }
+
+        var destino = new Date(viaje.fecha + 'T' + (viaje.hora_salida || '00:00') + ':00');
+
+        if (isNaN(destino.getTime())) {
+            contenedor.hidden = true;
+            return;
+        }
+
+        var diferencia = destino.getTime() - Date.now();
+        var unDia = 24 * 60 * 60 * 1000;
+
+        // El contador se enciende un día antes de la salida.
+        if (diferencia > unDia) {
+            contenedor.hidden = true;
+            return;
+        }
+
+        contenedor.hidden = false;
+        contenedor.className = 'temporizador' +
+            (diferencia < 0 ? ' salio' : (diferencia <= 60 * 60 * 1000 ? ' urgente' : ''));
+
+        $('#temporizador-etiqueta').textContent = diferencia < 0 ? 'Salida hace' : 'Faltan';
+        $('#temporizador-valor').textContent = formatearCuentaAtras(Math.abs(diferencia));
+    }
+
+    function marcarFechaEnVivo() {
+        var campo = $('#fecha-hoy');
+
+        if (!campo) {
+            return;
+        }
+
+        var texto = new Date().toLocaleDateString('es-SV', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+        if (campo.textContent !== texto) {
+            campo.textContent = texto;
+        }
+    }
+
+    function tarjetasMetricas(lista) {
+        return lista.map(function (metrica) {
+            return '<article class="metrica">' +
+                '<div class="metrica-cabecera"><span class="metrica-etiqueta">' + escapar(metrica.etiqueta) + '</span>' +
+                '<span class="metrica-icono ' + (metrica.clase || '') + '">' + icono(metrica.icono) + '</span></div>' +
+                '<div class="metrica-valor numero">' + escapar(metrica.valor) + '</div>' +
+                '<div class="metrica-detalle">' + escapar(metrica.detalle) + '</div>' +
+                '</article>';
+        }).join('');
+    }
+
     function metricasViaje(viaje) {
         if (!viaje) {
             return '';
         }
 
-        return [
+        return tarjetasMetricas([
             {
                 etiqueta: 'Estudiantes',
                 valor: String(viaje.pasajeros),
@@ -291,14 +424,7 @@
                 icono: ICONOS.docente,
                 clase: 'ambar'
             }
-        ].map(function (metrica) {
-            return '<article class="metrica">' +
-                '<div class="metrica-cabecera"><span class="metrica-etiqueta">' + escapar(metrica.etiqueta) + '</span>' +
-                '<span class="metrica-icono ' + (metrica.clase || '') + '">' + icono(metrica.icono) + '</span></div>' +
-                '<div class="metrica-valor numero">' + escapar(metrica.valor) + '</div>' +
-                '<div class="metrica-detalle">' + escapar(metrica.detalle) + '</div>' +
-                '</article>';
-        }).join('');
+        ]);
     }
 
     function estaSeleccionado(ocupante) {
@@ -344,6 +470,46 @@
             '</button>';
     }
 
+    function viajeIdActual() {
+        return estado.viajeDetalle ? estado.viajeDetalle.id : 0;
+    }
+
+    function ocupanteSeleccionado() {
+        if (!estado.mapa || !estado.asientoSeleccionado) {
+            return null;
+        }
+
+        for (var i = 0; i < estado.mapa.ocupantes.length; i++) {
+            var ocupante = estado.mapa.ocupantes[i];
+
+            if (ocupante.pasajero_id === estado.asientoSeleccionado.pasajero_id
+                && ocupante.tipo === estado.asientoSeleccionado.tipo) {
+                return ocupante;
+            }
+        }
+
+        return null;
+    }
+
+    function barraInstruccion() {
+        var seleccionado = ocupanteSeleccionado();
+
+        if (!seleccionado) {
+            return '<div class="mapa-instruccion">' +
+                '<span class="instruccion-icono">' + icono(ICONOS.raton) + '</span>' +
+                '<span class="instruccion-texto">Arrastra a un estudiante hasta la butaca que quieras, o haz clic en él y luego en el asiento de destino.</span>' +
+                '</div>';
+        }
+
+        return '<div class="mapa-instruccion activa">' +
+            '<span class="instruccion-icono">' + icono(ICONOS.mover) + '</span>' +
+            '<span class="instruccion-texto">Moviendo a <strong>' + escapar(seleccionado.nombre) + '</strong>' +
+            (seleccionado.codigo ? ' (' + escapar(seleccionado.codigo) + ')' : '') +
+            '. Elige el asiento de destino o pulsa <kbd>Esc</kbd> para cancelar.</span>' +
+            '<button type="button" class="boton boton-borde boton-pequeno" data-accion="cancelar-seleccion">Cancelar</button>' +
+            '</div>';
+    }
+
     function renderMapaAsientos() {
         var mapa = estado.mapa;
 
@@ -373,7 +539,8 @@
             filas.push(fila);
         }
 
-        var html = '<div class="mapa-bus">' +
+        var html = barraInstruccion() +
+            '<div class="mapa-bus">' +
             '<div class="frente-bus">' +
             '<span class="frente-volante">Volante</span>' +
             '<span class="butaca-personal">Docente</span>' +
@@ -401,7 +568,6 @@
             '<span><i class="muestra libre"></i>Libre</span>' +
             '<span><i class="muestra ocupada"></i>Estudiante</span>' +
             '<span><i class="muestra tutor"></i>Acompañante</span>' +
-            '<span class="leyenda-nota">Haz clic en una persona y luego en el asiento de destino, o arrástrala.</span>' +
             '</div>';
 
         return html;
@@ -449,10 +615,24 @@
             return '';
         }
 
+        if (!estado.mapa.ocupantes.length) {
+            return '<section class="tarjeta con-margen-inferior">' +
+                '<div class="tarjeta-cabecera"><div><h2>Asignación de asientos</h2>' +
+                '<p>El plano del autobús se habilita en cuanto se registren estudiantes en este viaje.</p></div></div>' +
+                '<div class="tarjeta-cuerpo"><div class="estado-vacio compacto">' +
+                '<strong>Este bus todavía no tiene estudiantes</strong>' +
+                '<p>Agrega a los primeros estudiantes para poder distribuir las butacas y generar el listado de abordaje.</p>' +
+                '<button type="button" class="boton boton-primario" data-accion="abrir-alta" data-id="' + viaje.id + '">' +
+                icono(ICONOS.mas) + 'Agregar estudiante</button>' +
+                '</div></div></section>';
+        }
+
         return '<section class="tarjeta con-margen-inferior">' +
             '<div class="tarjeta-cabecera"><div><h2>Asignación de asientos</h2>' +
             '<p>Selecciona un estudiante y elige el asiento exacto que ocupará, o arrástralo hasta la butaca. Con <strong>Cerrar huecos</strong> el bus vuelve a quedar lleno de forma continua.</p></div>' +
             '<div class="acciones-vista">' +
+            '<button type="button" class="boton boton-borde boton-pequeno" data-accion="deshacer-movimiento"' +
+            (estado.historialAsientos.length ? '' : ' disabled') + ' title="Deshace el último cambio de asiento">' + icono(ICONOS.deshacer) + 'Deshacer</button>' +
             '<button type="button" class="boton boton-borde boton-pequeno" data-accion="compactar-asientos" title="Rellena los asientos vacíos intermedios">Cerrar huecos</button>' +
             '<button type="button" class="boton boton-secundario boton-pequeno" data-accion="generar-listado">Generar listado</button>' +
             '<a class="boton boton-borde boton-pequeno" href="listado.php?viaje=' + viaje.id + '" target="_blank" rel="noopener">Exportar PDF</a>' +
@@ -461,6 +641,22 @@
             '<div>' + renderMapaAsientos() + '</div>' +
             renderListadoAbordaje() +
             '</div></div></section>';
+    }
+
+    function cierreViaje(viaje) {
+        if (viaje.estado !== 'finalizado') {
+            return '<div class="viaje-destacado-cierre">' +
+                '<button type="button" class="boton boton-borde" data-accion="cambiar-estado" data-estado="finalizado" data-id="' + viaje.id + '">' +
+                icono(ICONOS.cheque) + 'Marcar viaje como finalizado</button>' +
+                '<span class="nota-pequena texto-apagado">Al finalizar aparecerá aquí el botón para generar el listado.</span>' +
+                '</div>';
+        }
+
+        return '<div class="viaje-destacado-cierre">' +
+            '<button type="button" class="boton boton-primario" data-accion="generar-listado-salida" data-id="' + viaje.id + '">' +
+            icono(ICONOS.lista) + 'Generar listado</button>' +
+            '<span class="nota-pequena texto-apagado">Viaje finalizado · todos los buses y pasajeros ordenados según su pago.</span>' +
+            '</div>';
     }
 
     function vistaInicio() {
@@ -504,6 +700,7 @@
                 '<div class="barra"><span class="barra-relleno ' + claseBarra + '" style="width:' + Math.min(100, porcentaje) + '%"></span></div>' +
                 '<div class="ocupacion-cabecera"><span>' + viaje.pasajeros + ' estudiantes · ' + viaje.acompanantes + ' acompañantes · ' + viaje.asientos_personal + ' de personal</span><span class="numero">' + porcentaje + '%</span></div>' +
                 '</div>' +
+                cierreViaje(viaje) +
                 '</section>';
         }
 
@@ -527,7 +724,9 @@
                 '<td class="columna-media numero">' + dinero(pasajero.costo) +
                 (pasajero.encargado ? '<span class="celda-secundaria">incluye encargado</span>' : '') + '</td>' +
                 '<td class="columna-media numero">' + dinero(pasajero.pagado) + '</td>' +
-                '<td class="columna-acciones"><button type="button" class="boton-icono peligro" data-accion="quitar-pasajero" data-id="' + pasajero.id + '" data-viaje="' + viaje.id + '" title="Retirar del viaje">' + icono(ICONOS.bote) + '</button></td>' +
+                '<td class="columna-acciones">' +
+                '<button type="button" class="boton-icono" data-accion="cobrar-pasajero" data-id="' + pasajero.id + '" title="Registrar pago de ' + escapar(pasajero.nombre) + '">' + icono(ICONOS.cobrar) + '</button>' +
+                '<button type="button" class="boton-icono peligro" data-accion="quitar-pasajero" data-id="' + pasajero.id + '" data-viaje="' + viaje.id + '" title="Retirar del viaje">' + icono(ICONOS.bote) + '</button></td>' +
                 '</tr>';
         }).join('') : '<tr><td colspan="7"><div class="estado-vacio"><strong>Sin estudiantes</strong><p>Agrega a los primeros estudiantes desde el botón Gestionar viaje.</p></div></td></tr>';
 
@@ -613,7 +812,11 @@
             '<section class="tarjeta">' +
             '<div class="tarjeta-cabecera"><div><h2>Lista de pasajeros</h2><p>Se muestran en el orden en que fueron inscritos</p></div>' +
             '<div class="tarjeta-filtros"><div class="buscador">' + icono(ICONOS.lupa) +
-            '<input type="search" class="control" id="busqueda-pasajeros" placeholder="Buscar por nombre, código o encargado" value="' + escapar(estado.busquedaPasajeros) + '"></div></div></div>' +
+            '<input type="search" class="control" id="busqueda-pasajeros" placeholder="Buscar por nombre, código o encargado" value="' + escapar(estado.busquedaPasajeros) + '"></div>' +
+            '<button type="button" class="boton boton-borde boton-pequeno" data-accion="cobrar-todos" title="Registra el pago de todos los que aun deben"' +
+            (viaje.pendiente > 0 ? '' : ' disabled') + '>' + icono(ICONOS.cobrar) + 'Cobrar pendientes</button>' +
+            '<button type="button" class="boton boton-primario boton-pequeno" data-accion="abrir-alta" data-id="' + viaje.id + '">' +
+            icono(ICONOS.mas) + 'Agregar estudiante</button></div></div>' +
             '<div class="tabla-envoltura tabla-alta"><table class="tabla"><thead><tr>' +
             '<th class="col-orden">Orden</th><th>Estudiante</th><th>Código</th><th>Encargado</th><th class="col-derecha">Costo</th><th class="col-derecha">Pagado</th><th></th>' +
             '</tr></thead><tbody>' + filasPasajeros + '</tbody></table></div>' +
@@ -647,6 +850,194 @@
                 }).join('') +
                 '</div></section>' : '') +
             '</div>';
+    }
+
+    function fechaMedia(iso) {
+        if (!iso) {
+            return '—';
+        }
+
+        var fecha = new Date(iso + 'T00:00:00');
+
+        if (isNaN(fecha.getTime())) {
+            return fechaCorta(iso);
+        }
+
+        return fecha.toLocaleDateString('es-SV', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    function porcentaje(valor) {
+        var numero = Number(valor || 0);
+        var texto = numero.toFixed(1);
+
+        return (texto.slice(-2) === '.0' ? texto.slice(0, -2) : texto) + '%';
+    }
+
+    function numeroCorto(valor) {
+        return Number(valor || 0).toLocaleString('es-SV', { maximumFractionDigits: 1 });
+    }
+
+    function selectorPeriodo() {
+        var periodos = [
+            { id: 'mensual', texto: 'Mensual' },
+            { id: 'trimestral', texto: 'Trimestral' },
+            { id: 'anual', texto: 'Anual' }
+        ];
+
+        return '<div class="segmentado" role="group" aria-label="Período de las estadísticas">' +
+            periodos.map(function (periodo) {
+                var activo = estado.periodo === periodo.id;
+
+                return '<button type="button" class="segmento' + (activo ? ' activa' : '') + '"' +
+                    ' data-accion="cambiar-periodo" data-periodo="' + periodo.id + '"' +
+                    ' aria-pressed="' + (activo ? 'true' : 'false') + '">' + periodo.texto + '</button>';
+            }).join('') +
+            '</div>';
+    }
+
+    function pastillaSalida(estadoSalida) {
+        if (estadoSalida === 'en_curso') {
+            return '<span class="pastilla exito">En curso</span>';
+        }
+
+        if (estadoSalida === 'sin_cerrar') {
+            return '<span class="pastilla atencion">Sin finalizar</span>';
+        }
+
+        return '<span class="pastilla neutra sin-punto">Finalizada</span>';
+    }
+
+    function vistaEstadisticas() {
+        var datos = estado.estadisticas;
+
+        var encabezado = '<div class="encabezado-vista">' +
+            '<div><h1>Estadísticas</h1><p>Ocupación de los autobuses y métricas globales de las salidas realizadas.</p></div>' +
+            '<div class="acciones-vista">' + selectorPeriodo() +
+            '<button type="button" class="boton boton-borde boton-pequeno" data-accion="recargar-estadisticas">' +
+            icono(ICONOS.refrescar) + 'Actualizar</button>' +
+            '</div></div>';
+
+        if (!datos) {
+            return '<div class="vista">' + encabezado +
+                '<div class="cargando"><span class="cargando-barra"></span><p>Calculando las estadísticas del período</p></div></div>';
+        }
+
+        if (datos.error) {
+            return '<div class="vista">' + encabezado +
+                '<section class="tarjeta"><div class="estado-vacio">' +
+                '<strong>No se pudieron calcular las estadísticas</strong>' +
+                '<p>' + escapar(datos.error) + '</p>' +
+                '<button type="button" class="boton boton-primario" data-accion="recargar-estadisticas">Reintentar</button>' +
+                '</div></section></div>';
+        }
+
+        var resumen = datos.resumen;
+
+        var metricas = tarjetasMetricas([
+            {
+                etiqueta: 'Salidas realizadas',
+                valor: String(resumen.salidas),
+                detalle: resumen.buses === 1 ? '1 autobús utilizado' : resumen.buses + ' autobuses utilizados',
+                icono: ICONOS.calendario
+            },
+            {
+                etiqueta: 'Estudiantes beneficiados',
+                valor: String(resumen.beneficiados),
+                detalle: resumen.poblacion > 0
+                    ? 'de ' + resumen.poblacion + ' códigos registrados'
+                    : 'sin códigos registrados',
+                icono: ICONOS.usuarios,
+                clase: 'verde'
+            },
+            {
+                etiqueta: 'Promedio de asistencia',
+                valor: porcentaje(resumen.asistencia),
+                detalle: numeroCorto(resumen.promedio_estudiantes) + ' estudiantes por salida',
+                icono: ICONOS.grafico
+            },
+            {
+                etiqueta: 'Ocupación promedio',
+                valor: porcentaje(resumen.ocupacion),
+                detalle: resumen.capacidad > 0
+                    ? resumen.ocupados + ' de ' + resumen.capacidad + ' asientos utilizados'
+                    : 'sin autobuses en el período',
+                icono: ICONOS.asientos,
+                clase: 'ambar'
+            }
+        ]);
+
+        var grupos = datos.salidas.length ? datos.salidas.map(function (salida) {
+            var barras = salida.buses.map(function (bus) {
+                var clase = bus.ocupacion >= 100 ? 'error' : (bus.ocupacion >= 85 ? 'atencion' : '');
+                var libres = Math.max(0, bus.capacidad - bus.ocupados);
+
+                return '<div class="fila-ocupacion">' +
+                    '<div class="fila-ocupacion-cabecera">' +
+                    '<span><strong>Autobús ' + bus.numero + '</strong>' +
+                    '<span class="texto-apagado"> · ' + bus.pasajeros + (bus.pasajeros === 1 ? ' estudiante' : ' estudiantes') +
+                    (bus.acompanantes > 0 ? ' · ' + bus.acompanantes + (bus.acompanantes === 1 ? ' acompañante' : ' acompañantes') : '') +
+                    '</span></span>' +
+                    '<span class="fila-ocupacion-valor numero">' + bus.ocupacion + '%</span>' +
+                    '</div>' +
+                    '<div class="barra"><span class="barra-relleno ' + clase + '" style="width:' + Math.min(100, bus.ocupacion) + '%"></span></div>' +
+                    '<div class="fila-ocupacion-pie"><span>' + bus.ocupados + ' de ' + bus.capacidad + ' asientos</span><span>' +
+                    (libres === 0 ? 'Sin cupos libres' : libres + ' libres') + '</span></div>' +
+                    '</div>';
+            }).join('');
+
+            return '<article class="grupo-salida">' +
+                '<header class="grupo-salida-cabecera">' +
+                '<div><h3>' + escapar(salida.nombre) + '</h3>' +
+                '<p class="texto-apagado">' + escapar(fechaLarga(salida.fecha)) + ' · ' + escapar(salida.hora_salida) + '</p></div>' +
+                '<div class="grupo-salida-lado">' + pastillaSalida(salida.estado) +
+                '<span class="grupo-salida-ocupacion"><strong class="numero">' + salida.ocupacion + '%</strong><small>ocupación</small></span>' +
+                '</div></header>' +
+                '<div class="lista-ocupacion">' + barras + '</div>' +
+                '<footer class="grupo-salida-pie">' +
+                '<span>' + salida.estudiantes + (salida.estudiantes === 1 ? ' estudiante' : ' estudiantes') + '</span>' +
+                '<span>' + salida.personas + (salida.personas === 1 ? ' persona' : ' personas') + ' entre estudiantes y acompañantes</span>' +
+                '</footer></article>';
+        }).join('') : '<div class="estado-vacio"><strong>Sin salidas realizadas en el período</strong>' +
+            '<p>Cambia el período o programa una salida para empezar a medir la ocupación de los autobuses.</p></div>';
+
+        var filasResumen = [
+            ['Salidas realizadas', String(resumen.salidas)],
+            ['Autobuses utilizados', String(resumen.buses)],
+            ['Estudiantes beneficiados', String(resumen.beneficiados)],
+            ['Participaciones', String(resumen.participaciones)],
+            ['Códigos en el padrón', String(resumen.poblacion)],
+            ['Promedio por salida', numeroCorto(resumen.promedio_estudiantes) + ' estudiantes']
+        ].map(function (fila) {
+            return '<div><dt>' + fila[0] + '</dt><dd class="numero">' + fila[1] + '</dd></div>';
+        }).join('');
+
+        var resumenCard = '<section class="tarjeta">' +
+            '<div class="tarjeta-cabecera"><div><h2>Resumen general</h2><p>Volumen de la operación en el período</p></div></div>' +
+            '<div class="tarjeta-cuerpo compacto">' +
+            '<dl class="lista-datos">' + filasResumen + '</dl>' +
+            '<div class="asistencia-bloque">' +
+            '<div class="asistencia-cabecera"><span>Participación estudiantil</span>' +
+            '<strong class="numero">' + porcentaje(resumen.asistencia) + '</strong></div>' +
+            '<div class="barra"><span class="barra-relleno" style="width:' + Math.min(100, resumen.asistencia) + '%"></span></div>' +
+            '<p class="nota-pequena texto-apagado">En promedio viajan ' + numeroCorto(resumen.promedio_estudiantes) +
+            ' de los ' + resumen.poblacion + ' estudiantes registrados en cada salida.</p>' +
+            '</div>' +
+            '<p class="nota-pequena texto-apagado">Los estudiantes se cuentan por su código: quien viaja en varias salidas ' +
+            'suma una sola persona beneficiada, pero una participación por salida.</p>' +
+            '</div></section>';
+
+        return '<div class="vista">' + encabezado +
+            '<p class="rango-periodo">' + escapar(fechaMedia(datos.rango.desde) + ' – ' + fechaMedia(datos.rango.hasta)) +
+            ' · ' + datos.salidas.length + (datos.salidas.length === 1 ? ' salida' : ' salidas') + '</p>' +
+            '<div class="metricas">' + metricas + '</div>' +
+            '<div class="rejilla-estadisticas">' +
+            '<section class="tarjeta">' +
+            '<div class="tarjeta-cabecera"><div><h2>Ocupación por autobús</h2>' +
+            '<p>Capacidad utilizada en cada salida del período</p></div></div>' +
+            '<div class="tarjeta-cuerpo compacto">' + grupos + '</div>' +
+            '</section>' +
+            resumenCard +
+            '</div></div>';
     }
 
     function vistaAdministracion() {
@@ -746,8 +1137,9 @@
             '</div>';
     }
 
-    function abrirModalViaje(viajeId) {
+    function abrirModalViaje(viajeId, enfocarAlta) {
         estado.viajeModalId = viajeId;
+        estado.enfocarAlta = Boolean(enfocarAlta);
         estado.formPasajero = { nombre: '', codigo: '', encargado: '', amigo: '', conEncargado: false };
         estado.advertenciaCodigo = null;
 
@@ -818,25 +1210,6 @@
 
         var contenido = '<div class="modal-rejilla">' +
             '<div class="columna columna-espaciada">' +
-            '<section class="tarjeta"><div class="tarjeta-cabecera"><div><h3>Datos del viaje</h3><p>Horario, capacidad y estado del autobús</p></div>' +
-            '<div class="acciones-vista"><button type="button" class="boton boton-borde boton-pequeno" data-accion="abrir-redistribucion" data-id="' + viaje.id + '">Redistribuir pasajeros</button></div></div>' +
-            '<div class="tarjeta-cuerpo compacto"><form class="formulario dos-columnas" id="formulario-viaje">' +
-            '<div class="campo"><label class="campo-etiqueta" for="viaje-fecha">Día del viaje</label>' +
-            '<input type="date" class="control" id="viaje-fecha" name="fecha" value="' + escapar(viaje.fecha) + '"></div>' +
-            '<div class="campo"><label class="campo-etiqueta" for="viaje-salida">Hora de salida</label>' +
-            '<input type="time" class="control" id="viaje-salida" name="hora_salida" value="' + escapar(viaje.hora_salida) + '"></div>' +
-            '<div class="campo"><label class="campo-etiqueta" for="viaje-retorno">Hora estimada de regreso</label>' +
-            '<input type="time" class="control" id="viaje-retorno" name="hora_retorno" value="' + escapar(viaje.hora_retorno || '') + '"></div>' +
-            '<div class="campo"><label class="campo-etiqueta" for="viaje-capacidad">Capacidad máxima del bus</label>' +
-            '<input type="number" class="control numero" id="viaje-capacidad" name="capacidad_bus" min="' + viaje.ocupados + '" value="' + viaje.capacidad_bus + '">' +
-            '<span class="campo-ayuda">Quedan ' + viaje.cupos_disponibles + ' cupos. Se cuentan ' + viaje.pasajeros + ' estudiantes, ' +
-            viaje.acompanantes + ' acompañantes y ' + viaje.asientos_personal + ' asientos de personal.</span></div>' +
-            '<div class="campo ancho-completo"><label class="campo-etiqueta" for="viaje-notas">Notas para la colecturía</label>' +
-            '<textarea class="control" id="viaje-notas" name="notas" placeholder="Indicaciones especiales del viaje">' + escapar(viaje.notas || '') + '</textarea></div>' +
-            '<div class="campo ancho-completo"><div class="grupo-botones">' +
-            '<button type="submit" class="boton boton-primario">' + icono(ICONOS.cheque) + 'Guardar cambios</button>' +
-            '</div></div>' +
-            '</form></div></section>' +
             '<section class="tarjeta"><div class="tarjeta-cabecera"><div><h3>Estudiantes pasajeros</h3><p>' + viaje.pasajeros_lista.length + ' inscritos · ordenados según se agregaron</p></div></div>' +
             '<div class="tarjeta-cuerpo compacto">' + advertencia +
             '<form class="formulario" id="formulario-pasajero">' +
@@ -861,6 +1234,25 @@
             '<div class="tabla-envoltura tabla-media"><table class="tabla tabla-compacta"><thead><tr>' +
             '<th class="col-orden">Orden</th><th>Estudiante</th><th>Código</th><th>Encargado</th><th class="col-derecha">Costo</th><th class="col-derecha">Pagado</th><th></th>' +
             '</tr></thead><tbody>' + filas + '</tbody></table></div>' +
+            '<section class="tarjeta"><div class="tarjeta-cabecera"><div><h3>Datos del viaje</h3><p>Horario, capacidad y estado del autobús</p></div>' +
+            '<div class="acciones-vista"><button type="button" class="boton boton-borde boton-pequeno" data-accion="abrir-redistribucion" data-id="' + viaje.id + '">Redistribuir pasajeros</button></div></div>' +
+            '<div class="tarjeta-cuerpo compacto"><form class="formulario dos-columnas" id="formulario-viaje">' +
+            '<div class="campo"><label class="campo-etiqueta" for="viaje-fecha">Día del viaje</label>' +
+            '<input type="date" class="control" id="viaje-fecha" name="fecha" value="' + escapar(viaje.fecha) + '"></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="viaje-salida">Hora de salida</label>' +
+            '<input type="time" class="control" id="viaje-salida" name="hora_salida" value="' + escapar(viaje.hora_salida) + '"></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="viaje-retorno">Hora estimada de regreso</label>' +
+            '<input type="time" class="control" id="viaje-retorno" name="hora_retorno" value="' + escapar(viaje.hora_retorno || '') + '"></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="viaje-capacidad">Capacidad máxima del bus</label>' +
+            '<input type="number" class="control numero" id="viaje-capacidad" name="capacidad_bus" min="' + viaje.ocupados + '" value="' + viaje.capacidad_bus + '">' +
+            '<span class="campo-ayuda">Quedan ' + viaje.cupos_disponibles + ' cupos. Se cuentan ' + viaje.pasajeros + ' estudiantes, ' +
+            viaje.acompanantes + ' acompañantes y ' + viaje.asientos_personal + ' asientos de personal.</span></div>' +
+            '<div class="campo ancho-completo"><label class="campo-etiqueta" for="viaje-notas">Notas para la colecturía</label>' +
+            '<textarea class="control" id="viaje-notas" name="notas" placeholder="Indicaciones especiales del viaje">' + escapar(viaje.notas || '') + '</textarea></div>' +
+            '<div class="campo ancho-completo"><div class="grupo-botones">' +
+            '<button type="submit" class="boton boton-primario">' + icono(ICONOS.cheque) + 'Guardar cambios</button>' +
+            '</div></div>' +
+            '</form></div></section>' +
             '</section>' +
             '</div>' +
             '<div class="columna columna-espaciada">' +
@@ -915,6 +1307,44 @@
             '</div>';
 
         modal('Gestionar viaje', viaje.nombre, contenido, pie, true);
+
+        if (estado.enfocarAlta) {
+            estado.enfocarAlta = false;
+            var formularioAlta = $('#formulario-pasajero');
+
+            if (formularioAlta) {
+                formularioAlta.scrollIntoView({ block: 'center' });
+                var nombre = $('#pasajero-nombre');
+
+                if (nombre) {
+                    nombre.focus();
+                }
+            }
+        }
+
+        if (estado.enfocarCobro) {
+            var pasajeroId = estado.enfocarCobro;
+            estado.enfocarCobro = null;
+            var selectorPago = $('#pago-pasajero');
+
+            if (selectorPago) {
+                selectorPago.value = String(pasajeroId);
+                selectorPago.dispatchEvent(new Event('change', { bubbles: true }));
+
+                var formularioPago = $('#formulario-pago');
+
+                if (formularioPago) {
+                    formularioPago.scrollIntoView({ block: 'center' });
+                }
+
+                var montoCampo = $('#pago-monto');
+
+                if (montoCampo) {
+                    montoCampo.focus();
+                    montoCampo.select();
+                }
+            }
+        }
     }
 
     function abrirModalDesborde(contexto) {
@@ -1040,6 +1470,101 @@
             '<div class="grupo-botones"><button type="button" class="boton boton-borde" data-accion="cerrar-modal">Cerrar</button></div>';
 
         modal('Redistribuir pasajeros', salida.salida.nombre, contenido, pie, true);
+    }
+
+    function pintarListadoSalida(datos) {
+        if (!datos || !datos.buses) {
+            return;
+        }
+
+        var contador = 0;
+        var totalEstudiantes = 0;
+        var totalRecaudado = 0;
+        var totalPendiente = 0;
+
+        var bloques = datos.buses.map(function (bus) {
+            // Pagados al 100% primero, luego los pagos parciales y al final los pendientes.
+            var ordenados = bus.lista.map(function (pasajero, indice) {
+                var prioridad = pasajero.pendiente <= 0 ? 0 : (pasajero.pagado > 0 ? 1 : 2);
+                return { pasajero: pasajero, indice: indice, prioridad: prioridad };
+            }).sort(function (a, b) {
+                return a.prioridad - b.prioridad || a.indice - b.indice;
+            });
+
+            var recaudadoBus = 0;
+            var pendienteBus = 0;
+
+            var filas = ordenados.map(function (item) {
+                var pasajero = item.pasajero;
+
+                contador++;
+                totalEstudiantes++;
+                recaudadoBus += pasajero.pagado;
+                pendienteBus += pasajero.pendiente;
+
+                var pastillaPago = item.prioridad === 0
+                    ? '<span class="pastilla exito sin-punto">Pagado</span>'
+                    : (item.prioridad === 1
+                        ? '<span class="pastilla atencion sin-punto">Parcial</span>'
+                        : '<span class="pastilla error sin-punto">Pendiente</span>');
+
+                return '<tr>' +
+                    '<td><span class="orden-inscripcion">' + contador + '</span></td>' +
+                    '<td><span class="celda-principal">' + escapar(pasajero.nombre) + '</span>' +
+                    '<span class="celda-secundaria">' + escapar(pasajero.codigo) +
+                    (pasajero.asiento ? ' · asiento ' + pasajero.asiento : ' · sin asignar') + '</span></td>' +
+                    '<td>' + (pasajero.encargado ? escapar(pasajero.encargado) : '<span class="sin-dato">Sin encargado</span>') + '</td>' +
+                    '<td class="columna-media numero">' + dinero(pasajero.costo) + '</td>' +
+                    '<td class="columna-media numero">' + dinero(pasajero.pagado) + '</td>' +
+                    '<td class="columna-media numero">' + (pasajero.pendiente > 0 ? dinero(pasajero.pendiente) : '<span class="sin-dato">—</span>') + '</td>' +
+                    '<td class="columna-media">' + pastillaPago + '</td>' +
+                    '</tr>';
+            }).join('');
+
+            totalRecaudado += recaudadoBus;
+            totalPendiente += pendienteBus;
+
+            var tabla = filas
+                ? '<div class="tabla-envoltura"><table class="tabla tabla-compacta">' +
+                  '<thead><tr><th>#</th><th>Estudiante</th><th>Encargado</th>' +
+                  '<th class="columna-media">Costo</th><th class="columna-media">Pagado</th>' +
+                  '<th class="columna-media">Pendiente</th><th class="columna-media">Pago</th></tr></thead>' +
+                  '<tbody>' + filas + '</tbody></table></div>'
+                : '<p class="texto-apagado nota-pequena">Este bus todavía no tiene estudiantes asignados.</p>';
+
+            return '<article class="tarjeta-bus">' +
+                '<header class="tarjeta-bus-cabecera"><div>' +
+                '<span class="metrica-etiqueta">Bus ' + bus.numero + ' de ' + datos.buses.length + '</span>' +
+                '<h3>' + escapar(bus.hora_salida) + '</h3>' +
+                '<p class="celda-secundaria sin-margen">' + bus.pasajeros + ' estudiantes · ' +
+                bus.ocupados + ' / ' + bus.capacidad_bus + ' asientos ocupados</p>' +
+                '</div>' +
+                '<div class="grupo-botones">' +
+                '<a class="boton boton-borde boton-pequeno" href="listado.php?viaje=' + bus.id + '" target="_blank" rel="noopener">Exportar PDF</a>' +
+                '</div></header>' +
+                tabla +
+                '<div class="listado-salida-total">' +
+                '<span>Subtotal recaudado <strong class="numero">' + dinero(recaudadoBus) + '</strong></span>' +
+                '<span>Pendiente <strong class="numero">' + dinero(pendienteBus) + '</strong></span>' +
+                '</div>' +
+                '</article>';
+        }).join('');
+
+        var contenido = '<div class="alerta alerta-info">' +
+            '<strong>' + escapar(datos.salida.nombre) + '</strong>' +
+            '<span>' + escapar(datos.salida.destino) + ' · ' + escapar(fechaCorta(datos.salida.fecha)) +
+            ' · salida ' + escapar(datos.salida.hora_salida) + ' · ' + datos.buses.length +
+            ' bus(es) · ' + totalEstudiantes + ' estudiantes</span></div>' +
+            '<div class="listado-salida">' + bloques + '</div>' +
+            '<div class="listado-salida-total">' +
+            '<span>Total recaudado <strong class="numero">' + dinero(totalRecaudado) + '</strong></span>' +
+            '<span>Total pendiente <strong class="numero">' + dinero(totalPendiente) + '</strong></span>' +
+            '</div>';
+
+        var pie = '<span class="texto-apagado nota-pequena">Orden: pagados completos, luego pagos parciales y al final los pendientes. La numeración continúa de bus en bus.</span>' +
+            '<div class="grupo-botones"><button type="button" class="boton boton-borde" data-accion="cerrar-modal">Cerrar</button></div>';
+
+        modal('Listado de la salida', datos.salida.nombre, contenido, pie, true);
     }
 
     function recargarSalida(viajeId, mensaje, tipo) {
@@ -1266,12 +1791,35 @@
         }
     }
 
+    function guardarMapaActual() {
+        if (!estado.mapa) {
+            return;
+        }
+
+        estado.historialAsientos.push(estado.mapa.ocupantes.map(function (ocupante) {
+            return {
+                pasajero_id: ocupante.pasajero_id,
+                rol: ocupante.tipo,
+                numero: ocupante.numero
+            };
+        }));
+
+        if (estado.historialAsientos.length > 10) {
+            estado.historialAsientos.shift();
+        }
+    }
+
     function moverAsiento(pasajeroId, rol, destino, mensaje) {
         var viaje = estado.viajeDetalle;
 
         if (!viaje) {
             return;
         }
+
+        var seleccionado = ocupanteSeleccionado();
+        var nombre = seleccionado ? seleccionado.nombre : 'El estudiante';
+
+        guardarMapaActual();
 
         apiPost('asientos', {
             viaje_id: viaje.id,
@@ -1283,9 +1831,33 @@
             estado.viajeDetalle = respuesta.datos.viaje;
             estado.asientoSeleccionado = null;
             render();
-            aviso('Ubicación actualizada', mensaje || 'El estudiante se sentó en el asiento ' + destino + '.', 'exito');
+            aviso('Ubicación actualizada', mensaje || (nombre + ' ahora se sienta en el asiento ' + destino + '.'), 'exito');
         }).catch(function (error) {
+            estado.historialAsientos.pop();
             aviso('No se pudo mover', error.message, 'error');
+        });
+    }
+
+    function deshacerMovimiento() {
+        var viaje = estado.viajeDetalle;
+
+        if (!viaje || !estado.historialAsientos.length) {
+            return;
+        }
+
+        var anterior = estado.historialAsientos.pop();
+
+        apiPost('asientos', {
+            viaje_id: viaje.id,
+            asientos: anterior
+        }, 'restaurar').then(function (respuesta) {
+            estado.mapa = respuesta.datos.mapa;
+            estado.viajeDetalle = respuesta.datos.viaje;
+            estado.asientoSeleccionado = null;
+            render();
+            aviso('Movimiento deshecho', 'Se restauró la distribución anterior.', 'exito');
+        }).catch(function (error) {
+            aviso('No se pudo deshacer', error.message, 'error');
         });
     }
 
@@ -1314,12 +1886,18 @@
 
         if (pendiente > 0) {
             monto.value = pendiente.toFixed(2);
+        } else {
+            monto.value = '';
         }
 
         if (detalle) {
-            detalle.textContent = conEncargado
-                ? 'Incluye el costo del estudiante y de su encargado: ' + dinero(costo) + '.'
-                : 'Costo del estudiante: ' + dinero(costo) + '.';
+            if (pendiente <= 0 && costo > 0) {
+                detalle.textContent = 'Este estudiante ya tiene cubierto su costo de ' + dinero(costo) + '.';
+            } else if (conEncargado) {
+                detalle.textContent = 'Incluye el costo del estudiante y de su encargado: ' + dinero(costo) + '.';
+            } else {
+                detalle.textContent = 'Costo del estudiante: ' + dinero(costo) + '.';
+            }
         }
     }
 
@@ -1339,12 +1917,58 @@
                 cargarPanel('Actualizando la información de la colecturía');
                 break;
 
+            case 'cambiar-periodo':
+                var periodoElegido = disparador.getAttribute('data-periodo');
+
+                if (periodoElegido && periodoElegido !== estado.periodo) {
+                    estado.periodo = periodoElegido;
+                    cargarEstadisticas(true);
+                }
+                break;
+
+            case 'recargar-estadisticas':
+                cargarEstadisticas(true);
+                break;
+
+            case 'ir-estadisticas':
+                cambiarVista('estadisticas');
+                break;
+
             case 'ir-administracion':
                 cambiarVista('administracion');
                 break;
 
             case 'gestionar-viaje':
                 abrirModalViaje(Number(id));
+                break;
+
+            case 'abrir-alta':
+                abrirModalViaje(Number(id), true);
+                break;
+
+            case 'cobrar-pasajero':
+                estado.enfocarCobro = Number(id);
+                abrirModalViaje(viajeIdActual(), false);
+                break;
+
+            case 'cobrar-todos':
+                confirmar(
+                    'Cobrar lo pendiente',
+                    'Se registrará un pago por cada estudiante que aún no ha pagado lo que le corresponde, incluyendo el costo de sus acompañantes. Los pagos ya realizados no se tocan.',
+                    'Registrar cobros',
+                    'confirmar-cobrar-todos',
+                    { id: viajeIdActual() }
+                );
+                break;
+
+            case 'confirmar-cobrar-todos':
+                apiPost('pagos', { viaje_id: Number(id) }, 'cobrar_pendientes').then(function (respuesta) {
+                    cerrarModal();
+                    aviso('Cobros registrados', respuesta.mensaje || 'Se registraron los cobros pendientes.', 'exito');
+                    cargarPanel();
+                }).catch(function (error) {
+                    aviso('No se pudieron registrar', error.message, 'error');
+                });
                 break;
 
             case 'ver-viaje':
@@ -1525,6 +2149,15 @@
                 });
                 break;
 
+            case 'cancelar-seleccion':
+                estado.asientoSeleccionado = null;
+                render();
+                break;
+
+            case 'deshacer-movimiento':
+                deshacerMovimiento();
+                break;
+
             case 'seleccionar-asiento':
                 var pasajeroId = Number(disparador.getAttribute('data-pasajero-id'));
                 var rolSeleccion = disparador.getAttribute('data-rol') || 'estudiante';
@@ -1700,13 +2333,28 @@
                 break;
 
             case 'cambiar-estado':
-                apiPost('viajes', { estado: estadoViaje }, 'estado', { id: estado.viajeModalId }).then(function (respuesta) {
-                    estado.viajeModal = respuesta.datos;
-                    pintarModalViaje();
+                var viajeCambioId = Number(id) || estado.viajeModalId;
+
+                apiPost('viajes', { estado: estadoViaje }, 'estado', { id: viajeCambioId }).then(function (respuesta) {
+                    if (estado.viajeModalId) {
+                        estado.viajeModal = respuesta.datos;
+                        pintarModalViaje();
+                    }
+
                     aviso('Estado actualizado', 'El viaje quedó como ' + (estadoViaje === 'finalizado' ? 'finalizado' : 'programado') + '.', 'exito');
                     refrescarFondo();
                 }).catch(function (error) {
                     aviso('No se pudo cambiar el estado', error.message, 'error');
+                });
+                break;
+
+            case 'generar-listado-salida':
+                var viajeListado = Number(id);
+
+                apiGet('salidas', { viaje_id: viajeListado }).then(function (respuesta) {
+                    pintarListadoSalida(respuesta.datos);
+                }).catch(function (error) {
+                    aviso('No se pudo generar el listado', error.message, 'error');
                 });
                 break;
 
@@ -1807,6 +2455,12 @@
                 pintarModalViaje();
                 aviso('Estudiante agregado', 'El pasajero se añadió a la lista del viaje.', 'exito');
                 refrescarFondo();
+
+                var nombreCampo = $('#pasajero-nombre');
+
+                if (nombreCampo) {
+                    nombreCampo.focus();
+                }
             }).catch(function (error) {
                 if (error.codigo === 'codigo_repetido') {
                     estado.advertenciaCodigo = error.detalles;
@@ -1883,6 +2537,10 @@
             pestana.classList.toggle('activa', activa);
             pestana.setAttribute('aria-selected', activa ? 'true' : 'false');
         });
+
+        if (vista === 'estadisticas') {
+            cargarEstadisticas(false);
+        }
 
         render();
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1965,8 +2623,18 @@
         });
 
         document.addEventListener('keydown', function (evento) {
-            if (evento.key === 'Escape' && !$('#capa-modal').hidden) {
+            if (evento.key !== 'Escape') {
+                return;
+            }
+
+            if (!$('#capa-modal').hidden) {
                 cerrarModal();
+                return;
+            }
+
+            if (estado.asientoSeleccionado) {
+                estado.asientoSeleccionado = null;
+                render();
             }
         });
 
@@ -2003,6 +2671,24 @@
             asientoArrastrado = null;
         });
 
+        document.addEventListener('mouseover', function (evento) {
+            var destino = evento.target.closest('.butaca.libre');
+
+            if (!destino || !estado.asientoSeleccionado) {
+                return;
+            }
+
+            destino.classList.add('destino');
+        });
+
+        document.addEventListener('mouseout', function (evento) {
+            var destino = evento.target.closest('.butaca.libre');
+
+            if (destino) {
+                destino.classList.remove('destino');
+            }
+        });
+
         document.addEventListener('dragover', function (evento) {
             var destino = evento.target.closest('.butaca.libre');
 
@@ -2036,6 +2722,14 @@
             evento.preventDefault();
             moverAsiento(asientoArrastrado.pasajero_id, asientoArrastrado.tipo, Number(destino.getAttribute('data-asiento')));
         });
+
+        marcarFechaEnVivo();
+        actualizarTemporizador();
+
+        window.setInterval(function () {
+            marcarFechaEnVivo();
+            actualizarTemporizador();
+        }, 1000);
 
         cargarPanel();
     }

@@ -365,7 +365,7 @@ function incorporar_pasajero(int $viajeId, int $pasajeroId): void
     }
 
     if ($posicion === null) {
-        for ($i = $lugares; $i >= 1; $i--) {
+        for ($i = 1; $i <= $lugares; $i++) {
             if ($slots[$i] === null) {
                 $posicion = $i;
                 break;
@@ -421,6 +421,30 @@ function incorporar_pasajero(int $viajeId, int $pasajeroId): void
     }
 
     guardar_asientos($viajeId, $orden);
+}
+
+function restaurar_asientos(int $viajeId, array $orden): void
+{
+    $lugares = lugares_del_viaje($viajeId);
+    $validos = [];
+
+    foreach ($orden as $ocupante) {
+        $numero = (int) ($ocupante['numero'] ?? 0);
+
+        if ($numero < 1 || $numero > $lugares) {
+            continue;
+        }
+
+        $validos[$numero] = [
+            'tipo'       => $ocupante['rol'] ?? $ocupante['tipo'],
+            'pasajero_id' => (int) $ocupante['pasajero_id'],
+            'numero'     => $numero,
+        ];
+    }
+
+    ksort($validos);
+
+    guardar_asientos($viajeId, array_values($validos));
 }
 
 function listado_aboarding(int $viajeId, bool $formatoPdf = false): array

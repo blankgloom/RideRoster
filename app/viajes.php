@@ -205,13 +205,27 @@ function viaje_actual(array $viajes): ?array
 {
     $hoy = date('Y-m-d');
 
-    $vigentes = array_values(array_filter(
-        $viajes,
-        static fn (array $v): bool => $v['estado'] !== 'finalizado' && $v['fecha'] >= $hoy
-    ));
+    // Prioridad: primero lo de hoy y después lo más próximo. En cada tramo manda
+    // el que sigue vivo y, si todos están finalizados, se conserva el primero
+    // para poder generar el listado de esa salida.
+    $tramos = [
+        static fn (array $v): bool => $v['fecha'] === $hoy,
+        static fn (array $v): bool => $v['fecha'] > $hoy,
+    ];
 
-    if ($vigentes !== []) {
-        return $vigentes[0];
+    foreach ($tramos as $criterio) {
+        $candidatos = array_values(array_filter($viajes, $criterio));
+
+        if ($candidatos === []) {
+            continue;
+        }
+
+        $vivos = array_values(array_filter(
+            $candidatos,
+            static fn (array $v): bool => $v['estado'] !== 'finalizado'
+        ));
+
+        return $vivos !== [] ? $vivos[0] : $candidatos[0];
     }
 
     $en_curso = array_values(array_filter(

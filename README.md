@@ -37,9 +37,11 @@ queda desactualizado. La guía completa está en **[INSTALACION.md](INSTALACION.
 
 ### Inicio
 * Resumen del **viaje actual**: fecha, hora de salida, hora estimada de regreso, capacidad del autobús y ocupación en vivo.
+* **Temporizador de salida** en la esquina superior derecha de la cabecera: arranca **un día antes** de la salida, marca en rojo la última hora y, una vez pasada la salida, indica cuánto tiempo hace que el bus salió. Se oculta cuando el viaje está finalizado.
 * Indicadores de gestión: estudiantes inscritos, cupos disponibles, dinero recaudado y personal a bordo.
 * **Historial de viajes** con el detalle de cada salida realizada y de los próximos viajes programados.
 * Botón **Gestionar viaje**: permite ajustar el día, la hora de salida, la hora estimada de regreso, la capacidad máxima del bus (55 asientos por defecto), registrar y retirar estudiantes, y anotar los pagos recaudados.
+* Botón **Marcar viaje como finalizado**, ubicado debajo de la barra de ocupación. Al pulsarlo el viaje queda cerrado y, en el mismo lugar, aparece el botón **Generar listado**.
 * Al agregar un estudiante solo se requieren **nombre, código y el nombre del encargado** (cuando viaja acompañado). Si el código ya existe en el viaje, el sistema muestra la alerta **Código repetido** con el nombre y el encargado del registro anterior, y permite registrarlo de todos modos o corregirlo.
 
 ### Costo de los acompañantes
@@ -72,12 +74,30 @@ El formato se valida en el formulario (con aviso en vivo) y en el servidor antes
 ### Listado en PDF
 `listado.php` genera el documento imprimible del recorrido. Por superstición **no imprime los números 13 ni 18**: la persona que ocupaba la posición 13 pasa a figurar con el número 14 y las siguientes se desplazan de forma correlativa. Nadie se elimina del listado.
 
+### Listado de la salida
+Después de marcar el viaje como finalizado, el botón **Generar listado** abre el listado de **toda la salida**, con estos criterios:
+
+* **Un bloque por bus**, con su hora, su ocupación y su subtotal; si la salida tiene varios buses, cada uno queda con su propio bloque.
+* **Numeración continua** de bus en bus: el último número de un bus sigue en el primero del siguiente.
+* **Orden por pago**: primero quienes ya cubren el 100%, después los pagos parciales y al final los pendientes; dentro de cada grupo se conserva el orden de inscripción.
+* Por estudiante se muestra **nombre, código, asiento asignado, encargado, costo, pagado, pendiente** y su estado de pago (*Pagado*, *Parcial* o *Pendiente*).
+* **Totales** por bus y de la salida completa (recaudado y pendiente), más un botón **Exportar PDF** por bus que reutiliza `listado.php`.
+
 ### Administración
 * Catálogo de **paseos**: nombre, destino, costo por persona, profesor a cargo y personal de comandos de salvamento.
 * **Personal de salvamento** reutilizable entre paseos, con alta y baja desde la misma vista.
 * **Programación de viajes** a partir de un paseo, indicando día, horarios y capacidad del bus. Los viajes programados aparecen de inmediato en la pestaña Inicio.
 * **Parámetros globales**: capacidad predeterminada del autobús, asientos reservados al personal y orden de las listas de pasajeros.
 * **Flotas y salidas**: los buses que ejecutan el mismo paseo en la misma fecha y hora se agrupan para redistribuir pasajeros entre ellos.
+
+### Estadísticas
+* **Tasa de ocupación por autobús**: cada salida realizada muestra cada uno de sus buses con la capacidad utilizada (por ejemplo, *Autobús 1 al 100 %* y *Autobús 2 al 80 %*), los asientos ocupados y los libres.
+* **Filtro por período**: mensual (mes en curso), trimestral (trimestre en curso) y anual (año en curso), con el rango exacto de fechas a la vista.
+* **Total de salidas realizadas** en el período y número de autobuses utilizados.
+* **Estudiantes beneficiados**: conteo único por **código** de los alumnos que participaron en al menos una salida. Quien viaja en varias salidas cuenta una sola vez.
+* **Promedio de asistencia**: nivel de participación de la población estudiantil registrada, es decir, cuántos de los códigos del padrón viajan en promedio en cada salida.
+* **Resumen general y volumen**: salidas, autobuses, beneficiados, participaciones, tamaño del padrón y promedio de estudiantes por salida.
+* Las salidas cuya fecha ya pasó pero que no se marcaron como finalizadas se señalan con la etiqueta **Sin finalizar**, para cerrarlas desde Inicio.
 
 ---
 
@@ -161,7 +181,7 @@ RideRoster/
 
 La versión **0.5.1** marca el salto del prototipo a un sistema en operación:
 
-* Los dos módulos principales, **Inicio** y **Administración**, funcionan de punta a punta sobre MySQL con persistencia real.
+* Los tres módulos, **Inicio**, **Administración** y **Estadísticas**, funcionan de punta a punta sobre MySQL con persistencia real.
 * El control de pasajeros, horarios, capacidad, cobros y acompañantes quedan centralizados y auditables en un solo lugar.
 * La **asignación de asientos** interactiva y el **listado de abordaje** imprimible cubren la logística de embarque y el pase de lista en el evento.
 * El sistema se **auto-instala y se auto-migra**: no requiere pasos manuales para preparar o actualizar la base de datos.

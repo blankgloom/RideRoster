@@ -232,6 +232,10 @@ try {
             ]);
             break;
 
+        case 'estadisticas':
+            responder_ok(estadisticas_de_periodo((string) ($_GET['periodo'] ?? 'anual')));
+            break;
+
         case 'viajes':
             if ($metodo === 'GET' && $id > 0) {
                 $detalle = detalle_viaje($id);
@@ -923,6 +927,44 @@ try {
                     'mapa'  => mapa_asientos($viajeId),
                     'viaje' => detalle_viaje($viajeId),
                 ], ['mensaje' => 'Ubicación actualizada.']);
+            }
+
+            if ($metodo === 'POST' && $accion === 'restaurar') {
+                $viajeId = (int) ($datos['viaje_id'] ?? $id);
+                $mapa = mapa_asientos($viajeId);
+
+                if ($mapa === null) {
+                    responder_error('no_encontrado', 'El viaje solicitado no existe.', 404);
+                }
+
+                $anterior = $datos['asientos'] ?? [];
+
+                if (!is_array($anterior) || $anterior === []) {
+                    responder_error('datos_incompletos', 'No hay una distribución anterior para restaurar.');
+                }
+
+                $orden = [];
+
+                foreach ($anterior as $fila) {
+                    $rol = isset($fila['rol']) ? (string) $fila['rol'] : ROL_ESTUDIANTE;
+
+                    if (!in_array($rol, [ROL_ESTUDIANTE, ROL_TUTOR], true)) {
+                        $rol = ROL_ESTUDIANTE;
+                    }
+
+                    $orden[] = [
+                        'tipo'       => $rol,
+                        'pasajero_id' => (int) ($fila['pasajero_id'] ?? 0),
+                        'numero'     => (int) ($fila['numero'] ?? 0),
+                    ];
+                }
+
+                restaurar_asientos($viajeId, $orden);
+
+                responder_ok([
+                    'mapa'  => mapa_asientos($viajeId),
+                    'viaje' => detalle_viaje($viajeId),
+                ], ['mensaje' => 'Distribución anterior restaurada.']);
             }
 
             responder_error('ruta_desconocida', 'Acción no disponible para asientos.');

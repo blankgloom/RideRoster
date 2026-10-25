@@ -12,6 +12,13 @@ if ($viaje === null) {
     exit('El viaje solicitado no existe.');
 }
 
+// El listado de abordaje se arma sobre el plano de asientos. Si nadie lo ha generado
+// todavía y sí hay estudiantes inscritos, se genera aquí: de lo contrario la hoja
+// saldría vacía aunque el viaje esté lleno.
+if ((int) $viaje['pasajeros'] > 0 && filas_de_asientos($viajeId) === []) {
+    generar_asientos($viajeId);
+}
+
 $listado = listado_aboarding($viajeId, true);
 $total = count($listado);
 $estudiantes = count(array_filter($listado, static fn (array $fila): bool => $fila['tipo'] === ROL_ESTUDIANTE));
@@ -26,8 +33,8 @@ $tutores = $total - $estudiantes;
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/app.css">
-    <link rel="stylesheet" href="assets/css/listado.css">
+    <link rel="stylesheet" href="assets/css/app.css?v=<?= filemtime(__DIR__ . '/assets/css/app.css') ?>">
+    <link rel="stylesheet" href="assets/css/listado.css?v=<?= filemtime(__DIR__ . '/assets/css/listado.css') ?>">
 </head>
 <body class="pagina-listado">
     <div class="hoja">
@@ -63,6 +70,11 @@ $tutores = $total - $estudiantes;
                 </tr>
             </thead>
             <tbody>
+                <?php if ($listado === []): ?>
+                    <tr>
+                        <td colspan="6" class="hoja-vacio">Este viaje todavía no tiene estudiantes inscritos.</td>
+                    </tr>
+                <?php endif; ?>
                 <?php foreach ($listado as $fila): ?>
                     <tr>
                         <td class="numero celda-numero"><?= (int) $fila['numero_impreso'] ?></td>

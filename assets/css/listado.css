@@ -137,6 +137,15 @@
     background: #ffffff;
 }
 
+.hoja-vacio {
+    text-align: center;
+    font-size: 0.8125rem;
+    font-style: italic;
+    color: #64748b;
+    padding: 1.5rem 0.625rem;
+    background: #ffffff;
+}
+
 .hoja-pie {
     display: flex;
     justify-content: space-between;

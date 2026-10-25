@@ -142,6 +142,35 @@ function resumen_de_salida(array $salida): array
 }
 
 /**
+ * Mapa de butaca asignada por estudiante en un bus: pasajero_id => número de asiento.
+ *
+ * Solo el asiento del estudiante (no el del acompañante).
+ *
+ * @return array<int, int>
+ */
+function asientos_de_bus(int $viajeId): array
+{
+    try {
+        $sentencia = db()->prepare(
+            'SELECT pasajero_id, numero
+             FROM asientos
+             WHERE viaje_id = :viaje AND rol = :rol'
+        );
+        $sentencia->execute([':viaje' => $viajeId, ':rol' => ROL_ESTUDIANTE]);
+
+        $mapa = [];
+
+        foreach ($sentencia->fetchAll() as $fila) {
+            $mapa[(int) $fila['pasajero_id']] = (int) $fila['numero'];
+        }
+
+        return $mapa;
+    } catch (PDOException $excepcion) {
+        return [];
+    }
+}
+
+/**
  * Detalle completo de la salida: buses con su lista de pasajeros.
  *
  * @return array<string, mixed>|null
@@ -158,6 +187,7 @@ function detalle_salida(array $salida): ?array
 
     foreach ($buses as $indice => $bus) {
         $lista = [];
+        $asientosPorPasajero = asientos_de_bus((int) $bus['id']);
 
         foreach (pasajeros_ordenados($bus['id'], (float) $bus['costo_persona']) as $pasajero) {
             $lista[] = [
@@ -167,6 +197,7 @@ function detalle_salida(array $salida): ?array
                 'encargado' => $pasajero['encargado'],
                 'amigo_codigo' => $pasajero['amigo_codigo'],
                 'personas'  => personas_de_pasajero($pasajero),
+                'asiento'   => $asientosPorPasajero[(int) $pasajero['id']] ?? null,
                 'costo'     => (float) $pasajero['costo'],
                 'pagado'    => (float) $pasajero['pagado'],
                 'pendiente' => (float) $pasajero['pendiente'],

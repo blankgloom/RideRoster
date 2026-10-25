@@ -5,10 +5,10 @@ Todas las novedades de RideRoster se registran en este archivo.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el
 versionado se basa en [Semantic Versioning](https://semver.org/lang/es/).
 
-## [0.5.1] - 2026-10-22
+## [0.5.1] - 2026-10-25
 
-Primera versión operativa del sistema: los módulos de **Inicio** y **Administración**
-dejan de ser un esqueleto y funcionan de punta a punta sobre MySQL.
+Primera versión operativa del sistema: los módulos de **Inicio**, **Administración** y
+**Estadísticas** dejan de ser un esqueleto y funcionan de punta a punta sobre MySQL.
 
 ### Añadido
 
@@ -29,6 +29,9 @@ dejan de ser un esqueleto y funcionan de punta a punta sobre MySQL.
   marcados como distintivo en la lista de pasajeros.
 - **Formato de código de estudiante** `[Año][Sección][Número de lista]`, por ejemplo `2B03`,
   con validación en vivo en el formulario y validación en el servidor.
+- **Contador de salida** en la cabecera: muestra cuánto falta para la salida del viaje
+  actual, se enciende en las últimas 24 horas, cambia a aviso urgente en la última hora y
+  avisa cuando la hora de salida ya pasó.
 
 #### Módulo Administración
 - **Paseos**: catálogo de destinos con nombre, destino, costo por persona, profesor a cargo,
@@ -38,6 +41,22 @@ dejan de ser un esqueleto y funcionan de punta a punta sobre MySQL.
   Los viajes programados aparecen de inmediato en la pestaña Inicio.
 - **Parámetros globales** editables: capacidad predeterminada del autobús (55), asientos
   reservados al personal (2) y orden de las listas de pasajeros (orden de inscripción).
+
+#### Módulo Estadísticas
+- **Tasa de ocupación por autobús**: cada salida realizada muestra sus buses con la
+  capacidad utilizada, los asientos ocupados y los que quedan libres.
+- **Filtro por período** con tres rangos: mensual (mes en curso), trimestral (trimestre en
+  curso) y anual (año en curso), con el rango de fechas visible.
+- **Total de salidas realizadas** en el período, junto con el número de autobuses usados.
+- **Estudiantes beneficiados**: conteo único por **código** de los alumnos que participaron
+  en al menos una salida; quien viaja varias veces cuenta una sola vez.
+- **Promedio de asistencia**: participación de la población estudiantil registrada, es decir,
+  cuántos códigos del padrón viajan en promedio en cada salida.
+- **Resumen general y volumen**: salidas, autobuses, beneficiados, participaciones, tamaño
+  del padrón y promedio de estudiantes por salida.
+- Las salidas con fecha pasada que aún no se marcaron como finalizadas se señalan como
+  **Sin finalizar**.
+- Los números decimales del API se envían con su representación más corta.
 
 #### Asignación de asientos
 - **Plano interactivo del autobús** con distribución 2+2, al estilo mapa de sala de cine:
@@ -59,11 +78,41 @@ dejan de ser un esqueleto y funcionan de punta a punta sobre MySQL.
 - **Regla de numeración del PDF**: por superstición el documento **no imprime los números
   13 ni 18**. La persona que ocupaba la posición 13 pasa a figurar con el número 14 y las
   siguientes se desplazan de forma correlativa. No se elimina a ninguna persona.
+- El **listado de abordaje genera el plano de asientos** si todavía no existe, para que la
+  hoja no salga vacía aunque el bus esté lleno.
+- Si el viaje no tiene estudiantes inscritos, la hoja lo indica con un aviso en lugar de
+  mostrar una tabla vacía.
+
+#### Listado de la salida
+- **Botón "Generar listado"** cuando el viaje está finalizado: abre el detalle de **todos
+  los buses** de la salida, no solo del bus actual.
+- **Orden por estado de pago**: primero los estudiantes con pago completo, luego los pagos
+  parciales y al final los pendientes; la numeración continúa de bus en bus.
+- Cada fila muestra el **asiento** de la persona, el costo, lo pagado, lo pendiente y una
+  etiqueta con el estado del pago.
+- **Subtotales por bus** y **totales de la salida** de recaudado y pendiente.
+- **Exportar PDF** de cada bus desde el mismo detalle.
 
 #### Flotas y salidas
 - Agrupación de los viajes que ejecutan el mismo paseo en la misma fecha y hora.
 - **Redistribución de pasajeros** entre los buses de una salida, con reparto automático.
 - Creación de **buses adicionales** para una misma salida.
+
+#### Interfaz del alta de estudiantes y del cambio de asientos
+- **Acceso directo al alta**: el boton *Agregar estudiante* de la lista de pasajeros abre el
+  gestor del viaje con el cursor ya en el campo de nombre, y el formulario de alta queda
+  primero dentro del modal, antes que los datos del viaje.
+- El foco vuelve al campo de nombre despues de registrar un estudiante, para encadenar
+  altas sin volver a buscar el formulario.
+- **Barra de instrucciones contextual** en el plano de asientos: explica como mover y,
+  al seleccionar a alguien, indica su nombre, su codigo y como cancelar.
+- Los asientos libres se resaltan con una marca de "+" cuando hay una persona seleccionada,
+  y el destino se marca al pasar el cursor por encima.
+- **Deshacer**: devuelve la distribucion de asientos anterior al ultimo movimiento.
+- **Esc** cancela la seleccion sin cerrar la ventana.
+- Estado vacio propio cuando el bus todavia no tiene estudiantes, con acceso al alta.
+- Versionado de los archivos de estilos y JavaScript para que el navegador no sirva
+  versiones antiguas en cache tras una actualizacion.
 
 #### Costos y cobros
 - El **encargado cuenta como persona que paga**: el costo del estudiante con acompañante es
@@ -72,6 +121,10 @@ dejan de ser un esqueleto y funcionan de punta a punta sobre MySQL.
 - Se muestran el **costo total esperado**, el **recaudado** y el **por cobrar** del viaje.
 - Botón **Cobrar lo pendiente**: registra de una sola vez los cobros faltantes de todos los
   estudiantes, respetando pagos parciales ya realizados.
+- **Cobro en un paso desde el listado de pasajeros**: el ícono de cobro de cada fila abre el
+  formulario con el estudiante ya seleccionado y el monto pendiente cargado.
+- Botón **Cobrar pendientes** en la lista de pasajeros del inicio, con confirmación previa y
+  resumen del total registrado; repetirlo no duplica cobros.
 - Bloqueo de altas cuando el bus se llena o cuando la capacidad baja por debajo de los
   pasajeros ya inscritos.
 
@@ -93,6 +146,8 @@ dejan de ser un esqueleto y funcionan de punta a punta sobre MySQL.
 - El listado de abordaje muestra la numeración continua del recorrido y, por separado, el
   asiento físico de cada persona.
 - El listado en PDF incluye una columna con el asiento físico.
+- El **viaje actual** prioriza el viaje de hoy y, si no hay, el más próximo; cuando ya no
+  quedan viajes vigentes conserva uno finalizado para poder generar su listado.
 - La instalación deja de exponerse en el navegador y pasa a ejecutarse desde la terminal.
 
 ### Corregido

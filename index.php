@@ -14,6 +14,9 @@ try {
     $detalleEstado = $excepcion->getMessage();
 }
 
+$versionCss = filemtime(__DIR__ . '/assets/css/app.css');
+$versionJs = filemtime(__DIR__ . '/assets/js/app.js');
+
 ?><!DOCTYPE html>
 <html lang="es">
 <head>
@@ -23,7 +26,7 @@ try {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/app.css">
+    <link rel="stylesheet" href="assets/css/app.css?v=<?= $versionCss ?>">
 </head>
 <body>
     <header class="cabecera">
@@ -47,6 +50,7 @@ try {
             <nav class="pestanas" id="pestanas" aria-label="Secciones del sistema">
                 <button type="button" class="pestana activa" data-vista="inicio" aria-selected="true">Inicio</button>
                 <button type="button" class="pestana" data-vista="administracion" aria-selected="false">Administración</button>
+                <button type="button" class="pestana" data-vista="estadisticas" aria-selected="false">Estadísticas</button>
             </nav>
 
             <div class="cabecera-lateral">
@@ -55,6 +59,10 @@ try {
                     <span id="estado-sistema-texto">Colecturía activa</span>
                 </span>
                 <span class="fecha-hoy" id="fecha-hoy"></span>
+                <span class="temporizador" id="temporizador" hidden>
+                    <span class="temporizador-etiqueta" id="temporizador-etiqueta">Faltan</span>
+                    <strong class="temporizador-valor" id="temporizador-valor">--:--:--</strong>
+                </span>
             </div>
         </div>
     </header>
@@ -105,6 +113,6 @@ try {
 
     <div class="avisos" id="avisos" aria-live="polite"></div>
 
-    <script src="assets/js/app.js"></script>
+    <script src="assets/js/app.js?v=<?= $versionJs ?>"></script>
 </body>
 </html>

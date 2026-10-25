@@ -728,7 +728,9 @@
                 '<button type="button" class="boton-icono" data-accion="cobrar-pasajero" data-id="' + pasajero.id + '" title="Registrar pago de ' + escapar(pasajero.nombre) + '">' + icono(ICONOS.cobrar) + '</button>' +
                 '<button type="button" class="boton-icono peligro" data-accion="quitar-pasajero" data-id="' + pasajero.id + '" data-viaje="' + viaje.id + '" title="Retirar del viaje">' + icono(ICONOS.bote) + '</button></td>' +
                 '</tr>';
-        }).join('') : '<tr><td colspan="7"><div class="estado-vacio"><strong>Sin estudiantes</strong><p>Agrega a los primeros estudiantes desde el botón Gestionar viaje.</p></div></td></tr>';
+        }).join('') : (viaje
+            ? '<tr><td colspan="7"><div class="estado-vacio"><strong>Sin estudiantes</strong><p>Agrega a los primeros estudiantes desde el botón Gestionar viaje.</p></div></td></tr>'
+            : '<tr><td colspan="7"><div class="estado-vacio"><strong>Sin viaje activo</strong><p>Crea un paseo en Administración y programa un viaje para inscribir estudiantes.</p></div></td></tr>');
 
         var filasHistorial = historial.length ? historial.map(function (item) {
             return '<tr>' +
@@ -813,10 +815,10 @@
             '<div class="tarjeta-cabecera"><div><h2>Lista de pasajeros</h2><p>Se muestran en el orden en que fueron inscritos</p></div>' +
             '<div class="tarjeta-filtros"><div class="buscador">' + icono(ICONOS.lupa) +
             '<input type="search" class="control" id="busqueda-pasajeros" placeholder="Buscar por nombre, código o encargado" value="' + escapar(estado.busquedaPasajeros) + '"></div>' +
-            '<button type="button" class="boton boton-borde boton-pequeno" data-accion="cobrar-todos" title="Registra el pago de todos los que aun deben"' +
+            (viaje ? '<button type="button" class="boton boton-borde boton-pequeno" data-accion="cobrar-todos" title="Registra el pago de todos los que aun deben"' +
             (viaje.pendiente > 0 ? '' : ' disabled') + '>' + icono(ICONOS.cobrar) + 'Cobrar pendientes</button>' +
             '<button type="button" class="boton boton-primario boton-pequeno" data-accion="abrir-alta" data-id="' + viaje.id + '">' +
-            icono(ICONOS.mas) + 'Agregar estudiante</button></div></div>' +
+            icono(ICONOS.mas) + 'Agregar estudiante</button>' : '') + '</div></div>' +
             '<div class="tabla-envoltura tabla-alta"><table class="tabla"><thead><tr>' +
             '<th class="col-orden">Orden</th><th>Estudiante</th><th>Código</th><th>Encargado</th><th class="col-derecha">Costo</th><th class="col-derecha">Pagado</th><th></th>' +
             '</tr></thead><tbody>' + filasPasajeros + '</tbody></table></div>' +
@@ -1725,6 +1727,50 @@
             '<button type="button" class="boton boton-peligro" data-accion="' + accion + '"' + atributos + '>' + escapar(textoBoton) + '</button></div>');
     }
 
+    function confirmarEliminarPaseoConViajes(paseoId, detalles) {
+        var paseo = estado.paseos.filter(function (item) {
+            return Number(item.id) === paseoId;
+        })[0];
+
+        var viajes = Number(detalles.viajes || 0);
+        var pasajeros = Number(detalles.pasajeros || 0);
+        var pagos = Number(detalles.pagos || 0);
+
+        modal(
+            'Eliminar paseo y sus viajes',
+            paseo ? paseo.nombre : '',
+            '<div class="alerta alerta-error"><strong>Esta acción no se puede deshacer</strong>' +
+            '<span>El paseo tiene ' + viajes + (viajes === 1 ? ' viaje programado' : ' viajes programados') +
+            ', ' + pasajeros + (pasajeros === 1 ? ' estudiante inscrito' : ' estudiantes inscritos') +
+            ' y ' + pagos + (pagos === 1 ? ' pago registrado' : ' pagos registrados') + '.</span></div>' +
+            '<p class="texto-apagado">Si continúas se borrarán también esos viajes con sus listas de pasajeros, ' +
+            'sus asientos y sus pagos. Los demás paseos y viajes no se modifican.</p>',
+            '<div class="grupo-botones"><button type="button" class="boton boton-borde" data-accion="cerrar-modal">Cancelar</button>' +
+            '<button type="button" class="boton boton-peligro" data-accion="forzar-eliminar-paseo" data-id="' + paseoId + '">Eliminar todo</button></div>'
+        );
+    }
+
+    function confirmarEliminarViajeConDatos(viajeId, detalles) {
+        var viaje = estado.programados.concat(estado.historial).filter(function (item) {
+            return Number(item.id) === viajeId;
+        })[0];
+
+        var pasajeros = Number(detalles.pasajeros || 0);
+        var pagos = Number(detalles.pagos || 0);
+
+        modal(
+            'Eliminar viaje con datos',
+            viaje ? viaje.nombre + ' · ' + fechaCorta(viaje.fecha) : '',
+            '<div class="alerta alerta-error"><strong>Esta acción no se puede deshacer</strong>' +
+            '<span>El viaje tiene ' + pasajeros + (pasajeros === 1 ? ' estudiante' : ' estudiantes') +
+            ' y ' + pagos + (pagos === 1 ? ' pago registrado' : ' pagos registrados') + '.</span></div>' +
+            '<p class="texto-apagado">Si continúas se borrarán también la lista de pasajeros, los asientos ' +
+            'y los pagos de este viaje. Los demás viajes no se modifican.</p>',
+            '<div class="grupo-botones"><button type="button" class="boton boton-borde" data-accion="cerrar-modal">Cancelar</button>' +
+            '<button type="button" class="boton boton-peligro" data-accion="forzar-eliminar-viaje" data-id="' + viajeId + '">Eliminar viaje</button></div>'
+        );
+    }
+
     function collectedFormulario(id) {
         var formulario = document.getElementById(id);
         var datos = {};
@@ -1992,27 +2038,70 @@
                 break;
 
             case 'eliminar-paseo':
-                confirmar('Eliminar paseo', 'Se quitará el paseo del catálogo. Los viajes ya programados no se modifican.', 'Eliminar paseo', 'confirmar-eliminar-paseo', { id: Number(id) });
+                confirmar(
+                    'Eliminar paseo',
+                    'Se quitará el paseo del catálogo. Si tiene viajes programados, se pedirá una segunda confirmación antes de borrarlos.',
+                    'Continuar',
+                    'confirmar-eliminar-paseo',
+                    { id: Number(id) }
+                );
                 break;
 
             case 'confirmar-eliminar-paseo':
                 apiPost('paseos', {}, 'eliminar', { id: Number(id) }).then(function (respuesta) {
                     estado.paseos = respuesta.datos;
-                    render();
-                    aviso('Paseo eliminado', 'El paseo se retiró del catálogo.', 'exito');
                     cerrarModal();
+                    refrescarFondo();
+                    aviso('Paseo eliminado', respuesta.mensaje || 'El paseo se retiró del catálogo.', 'exito');
+                }).catch(function (error) {
+                    if (error.codigo === 'paseo_en_uso') {
+                        confirmarEliminarPaseoConViajes(Number(id), error.detalles || {});
+                        return;
+                    }
+
+                    aviso('No se pudo eliminar', error.message, 'error');
+                });
+                break;
+
+            case 'forzar-eliminar-paseo':
+                apiPost('paseos', { forzar: true }, 'eliminar', { id: Number(id) }).then(function (respuesta) {
+                    estado.paseos = respuesta.datos;
+                    cerrarModal();
+                    refrescarFondo();
+                    aviso('Paseo eliminado', respuesta.mensaje || 'El paseo y sus viajes se retiraron del sistema.', 'exito');
                 }).catch(function (error) {
                     aviso('No se pudo eliminar', error.message, 'error');
                 });
                 break;
 
             case 'eliminar-viaje':
-                confirmar('Eliminar viaje', 'Se borrará el viaje junto con su lista de pasajeros y sus pagos.', 'Eliminar viaje', 'confirmar-eliminar-viaje', { id: Number(id) });
+                confirmar(
+                    'Eliminar viaje',
+                    'Se borrará el viaje. Si ya tiene estudiantes o pagos, se pedirá una segunda confirmación.',
+                    'Continuar',
+                    'confirmar-eliminar-viaje',
+                    { id: Number(id) }
+                );
                 break;
 
             case 'confirmar-eliminar-viaje':
                 apiPost('viajes', {}, 'eliminar', { id: Number(id) }).then(function () {
                     aviso('Viaje eliminado', 'El viaje se retiró del sistema.', 'exito');
+                    cerrarModal();
+                    cargarPanel();
+                }).catch(function (error) {
+                    if (error.codigo === 'viaje_con_datos') {
+                        confirmarEliminarViajeConDatos(Number(id), error.detalles || {});
+                        return;
+                    }
+
+                    aviso('No se pudo eliminar', error.message, 'error');
+                });
+                break;
+
+            case 'forzar-eliminar-viaje':
+                apiPost('viajes', { forzar: true }, 'eliminar', { id: Number(id) }).then(function () {
+                    aviso('Viaje eliminado', 'Se retiró el viaje con sus pasajeros, asientos y pagos.', 'exito');
                     cerrarModal();
                     cargarPanel();
                 }).catch(function (error) {

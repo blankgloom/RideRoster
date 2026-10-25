@@ -336,6 +336,29 @@ try {
             }
 
             if ($metodo === 'POST' && $accion === 'eliminar') {
+                $detalle = detalle_viaje($id);
+
+                if ($detalle === null) {
+                    responder_error('no_encontrado', 'El viaje solicitado no existe.', 404);
+                }
+
+                $pasajeros = (int) $detalle['pasajeros'];
+                $pagos = count($detalle['pagos']);
+                $forzar = filter_var($datos['forzar'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+                if (($pasajeros > 0 || $pagos > 0) && !$forzar) {
+                    responder_error(
+                        'viaje_con_datos',
+                        'El viaje tiene ' . $pasajeros . ($pasajeros === 1 ? ' estudiante' : ' estudiantes') .
+                        ' y ' . $pagos . ($pagos === 1 ? ' pago' : ' pagos') . '.',
+                        409,
+                        [
+                            'pasajeros' => $pasajeros,
+                            'pagos'     => $pagos,
+                        ]
+                    );
+                }
+
                 $sentencia = db()->prepare('DELETE FROM viajes WHERE id = :id');
                 $sentencia->execute([':id' => $id]);
 
@@ -1032,14 +1055,53 @@ try {
                 $enUso->execute([':paseo' => $id]);
                 $cantidad = (int) $enUso->fetchColumn();
 
-                if ($cantidad > 0) {
-                    responder_error('paseo_en_uso', 'El paseo tiene viajes registrados y no puede eliminarse.');
+                $forzar = filter_var($datos['forzar'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+                if ($cantidad > 0 && !$forzar) {
+                    $detalle = db()->prepare(
+                        'SELECT
+                            (SELECT COUNT(*) FROM pasajeros ps
+                                INNER JOIN viajes v ON v.id = ps.viaje_id
+                             WHERE v.paseo_id = :paseo_pasajeros) AS pasajeros,
+                            (SELECT COUNT(*) FROM pagos pg
+                                INNER JOIN viajes v ON v.id = pg.viaje_id
+                             WHERE v.paseo_id = :paseo_pagos) AS pagos'
+                    );
+                    $detalle->execute([':paseo_pasajeros' => $id, ':paseo_pagos' => $id]);
+                    $resumen = $detalle->fetch() ?: ['pasajeros' => 0, 'pagos' => 0];
+
+                    responder_error(
+                        'paseo_en_uso',
+                        'El paseo tiene ' . $cantidad . ($cantidad === 1 ? ' viaje programado' : ' viajes programados') . '.',
+                        409,
+                        [
+                            'viajes'    => $cantidad,
+                            'pasajeros' => (int) $resumen['pasajeros'],
+                            'pagos'     => (int) $resumen['pagos'],
+                        ]
+                    );
                 }
 
-                db()->prepare('DELETE FROM paseo_personal WHERE paseo_id = :paseo')->execute([':paseo' => $id]);
-                db()->prepare('DELETE FROM paseos WHERE id = :id')->execute([':id' => $id]);
+                $pdo = db();
+                $pdo->beginTransaction();
 
-                responder_ok(listar_paseos(), ['mensaje' => 'Paseo eliminado.']);
+                try {
+                    // Los pasajeros, asientos y pagos se van en cascada con cada viaje.
+                    $pdo->prepare('DELETE FROM viajes WHERE paseo_id = :paseo')->execute([':paseo' => $id]);
+                    $pdo->prepare('DELETE FROM paseo_personal WHERE paseo_id = :paseo')->execute([':paseo' => $id]);
+                    $pdo->prepare('DELETE FROM paseos WHERE id = :id')->execute([':id' => $id]);
+                    $pdo->commit();
+                } catch (Throwable $excepcion) {
+                    $pdo->rollBack();
+                    throw $excepcion;
+                }
+
+                responder_ok(listar_paseos(), [
+                    'mensaje' => $cantidad > 0
+                        ? 'Paseo eliminado junto con ' . $cantidad . ($cantidad === 1 ? ' viaje' : ' viajes') . '.'
+                        : 'Paseo eliminado.',
+                    'viajes_eliminados' => $cantidad,
+                ]);
             }
 
             responder_error('ruta_desconocida', 'Acción no disponible para paseos.');

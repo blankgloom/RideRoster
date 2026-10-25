@@ -89,6 +89,7 @@ Después de marcar el viaje como finalizado, el botón **Generar listado** abre 
 * **Programación de viajes** a partir de un paseo, indicando día, horarios y capacidad del bus. Los viajes programados aparecen de inmediato en la pestaña Inicio.
 * **Parámetros globales**: capacidad predeterminada del autobús, asientos reservados al personal y orden de las listas de pasajeros.
 * **Flotas y salidas**: los buses que ejecutan el mismo paseo en la misma fecha y hora se agrupan para redistribuir pasajeros entre ellos.
+* **Borrado con doble confirmación**: un paseo con viajes programados se puede eliminar; la segunda confirmación detalla los viajes, estudiantes y pagos que se borrarán en cascada. Igual al borrar un viaje con estudiantes o pagos.
 
 ### Estadísticas
 * **Tasa de ocupación por autobús**: cada salida realizada muestra cada uno de sus buses con la capacidad utilizada (por ejemplo, *Autobús 1 al 100 %* y *Autobús 2 al 80 %*), los asientos ocupados y los libres.

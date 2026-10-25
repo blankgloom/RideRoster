@@ -15,3 +15,7 @@ Thumbs.db
 # Herramientas
 .php-cs-fixer.cache
 .phpunit.result.cache
+
+# Volcados locales de bases de datos (no forman parte del proyecto)
+database/*.sql
+!database/schema.sql

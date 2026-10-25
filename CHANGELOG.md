@@ -45,6 +45,9 @@ Primera versión operativa del sistema: los módulos de **Inicio**, **Administra
   Los viajes programados aparecen de inmediato en la pestaña Inicio.
 - **Parámetros globales** editables: capacidad predeterminada del autobús (55), asientos
   reservados al personal (2) y orden de las listas de pasajeros (orden de inscripción).
+- **Borrado con doble confirmación**: un paseo que ya tiene viajes programados se puede
+  eliminar; la segunda confirmación indica cuántos viajes, estudiantes y pagos se borrarán
+  en cascada. Lo mismo aplica al eliminar un viaje que ya tiene estudiantes o pagos.
 
 #### Módulo Estadísticas
 - **Tasa de ocupación por autobús**: cada salida realizada muestra sus buses con la
@@ -170,6 +173,13 @@ Primera versión operativa del sistema: los módulos de **Inicio**, **Administra
   conservando las repeticiones intencionales.
 - La aplicación ya no se rompe cuando la base de datos está desactualizada: migra sola y
   avisa con un mensaje claro.
+- La aplicación ya no se rompe con la base de datos vacía: sin viajes registrados, la vista
+  de Inicio mostraba el aviso "No se pudo cargar la información" en lugar de su estado
+  vacío, al intentar leer el viaje que no existe para pintar los botones de la lista de
+  pasajeros.
+- Desde Administración se volvía a Inicio sin respuesta cuando la base estaba vacía, porque
+  el error anterior impedía repintar el contenido; ahora la lista de pasajeros muestra el
+  mensaje **Sin viaje activo** y sus botones solo aparecen cuando hay un viaje seleccionado.
 
 ### Eliminado
 - `install.php`, el instalador web: se sustituye por `bin/rideroster` para no exponer una

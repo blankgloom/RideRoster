@@ -31,7 +31,11 @@ Primera versión operativa del sistema: los módulos de **Inicio**, **Administra
   con validación en vivo en el formulario y validación en el servidor.
 - **Contador de salida** en la cabecera: muestra cuánto falta para la salida del viaje
   actual, se enciende en las últimas 24 horas, cambia a aviso urgente en la última hora y
-  avisa cuando la hora de salida ya pasó.
+  avisa cuando la hora de salida ya pasó. Se oculta cuando el viaje está finalizado y, en
+  pantallas estrechas, la fecha del día cede su espacio para no desbordar la cabecera.
+- **Botón "Marcar viaje como finalizado"** debajo de la barra de ocupación: cierra el viaje
+  desde la tarjeta del Inicio con la misma lógica que el modal del viaje y, en el mismo
+  lugar, deja aparecer el botón **Generar listado**.
 
 #### Módulo Administración
 - **Paseos**: catálogo de destinos con nombre, destino, costo por persona, profesor a cargo,
@@ -97,6 +101,11 @@ Primera versión operativa del sistema: los módulos de **Inicio**, **Administra
 - Agrupación de los viajes que ejecutan el mismo paseo en la misma fecha y hora.
 - **Redistribución de pasajeros** entre los buses de una salida, con reparto automático.
 - Creación de **buses adicionales** para una misma salida.
+- **Control de desborde**: al inscribir a un estudiante en un bus lleno, el sistema responde
+  con el detalle de la ocupación (ocupados, capacidad, cupos y buses de la salida) y ofrece
+  dos salidas: **Crear un segundo bus**, que abre un bus hermano y registra ahí al
+  estudiante, o **Distribuir pasajeros sobrantes** entre los buses existentes. El API admite
+  la marca `desborde=auto` para crear el bus sin pasar por el modal.
 
 #### Interfaz del alta de estudiantes y del cambio de asientos
 - **Acceso directo al alta**: el boton *Agregar estudiante* de la lista de pasajeros abre el
@@ -125,8 +134,9 @@ Primera versión operativa del sistema: los módulos de **Inicio**, **Administra
   formulario con el estudiante ya seleccionado y el monto pendiente cargado.
 - Botón **Cobrar pendientes** en la lista de pasajeros del inicio, con confirmación previa y
   resumen del total registrado; repetirlo no duplica cobros.
-- Bloqueo de altas cuando el bus se llena o cuando la capacidad baja por debajo de los
-  pasajeros ya inscritos.
+- Bloqueo de altas cuando la capacidad baja por debajo de los pasajeros ya inscritos; si el
+  bus se llena, además se ofrecen las opciones de crear otro bus o de redistribuir a los
+  pasajeros sobrantes.
 
 #### Base de datos y operación
 - **Auto-migración**: el sistema compara la versión del esquema con la de la base de datos

@@ -13,6 +13,8 @@ $raiz = dirname(__DIR__);
 require_once $raiz . '/app/config.php';
 require_once $raiz . '/app/database.php';
 require_once $raiz . '/app/migracion.php';
+require_once $raiz . '/app/padron.php';
+require_once $raiz . '/app/migracion_instituto.php';
 require_once $raiz . '/app/semilla.php';
 
 $comando = $argv[1] ?? 'ayuda';
@@ -41,7 +43,7 @@ function crear_base_de_datos(): void
 
 function resumen_tabla(): array
 {
-    $tablas = ['paseos', 'viajes', 'pasajeros', 'pagos', 'personal_salvamento', 'asientos'];
+    $tablas = ['alumnos', 'secciones', 'encargados', 'profesores', 'paseos', 'viajes', 'pasajeros', 'pagos', 'personal_salvamento', 'asientos'];
     $resumen = [];
 
     foreach ($tablas as $tabla) {
@@ -62,6 +64,103 @@ function mostrar_resumen(): void
 
     foreach (resumen_tabla() as $tabla => $total) {
         escribir(sprintf('  %-22s %d', $tabla, $total));
+    }
+}
+
+/**
+ * Lee los argumentos --clave o --clave=valor de la línea de comandos.
+ */
+function opciones_cli(array $argumentos): array
+{
+    $opciones = [];
+
+    foreach ($argumentos as $argumento) {
+        if (!str_starts_with($argumento, '--')) {
+            continue;
+        }
+
+        $partes = explode('=', substr($argumento, 2), 2);
+        $opciones[$partes[0]] = count($partes) === 2 ? $partes[1] : true;
+    }
+
+    return $opciones;
+}
+
+/**
+ * Imprime el resultado de la migración del instituto.
+ */
+function mostrar_informe(array $informe, bool $simular): void
+{
+    titulo($simular ? 'Informe de la migración (simulación, sin escribir)' : 'Informe de la migración');
+
+    escribir('Origen:  ' . $informe['origen']['archivo']);
+    escribir(sprintf('  %-22s %d', 'profesores', $informe['origen']['profesores']));
+    escribir(sprintf('  %-22s %d', 'secciones', $informe['origen']['secciones']));
+    escribir(sprintf('  %-22s %d', 'estudiantes', $informe['origen']['estudiantes']));
+    escribir();
+
+    $profesores = $informe['profesores'];
+    escribir('Profesores');
+    escribir('  insertados             ' . $profesores['insertados']);
+    escribir('  actualizados           ' . $profesores['actualizados']);
+    escribir('  sin cambios            ' . $profesores['sin_cambios']);
+
+    foreach ($profesores['errores'] as $error) {
+        escribir('  ERROR · ' . $error['codigo'] . ' → ' . $error['motivo']);
+    }
+
+    escribir();
+
+    $secciones = $informe['secciones'];
+    escribir('Secciones');
+    escribir('  insertadas             ' . $secciones['insertados']);
+    escribir('  actualizadas           ' . $secciones['actualizados']);
+    escribir('  sin cambios            ' . $secciones['sin_cambios']);
+
+    foreach ($secciones['errores'] as $error) {
+        escribir('  ERROR · ' . $error['nombre'] . ' → ' . $error['motivo']);
+    }
+
+    escribir();
+
+    $encargados = $informe['encargados'];
+    escribir('Encargados');
+    escribir('  creados                ' . $encargados['creados']);
+    escribir('  reutilizados           ' . $encargados['reutilizados']);
+
+    foreach ($encargados['errores'] as $error) {
+        escribir('  ERROR · ' . $error);
+    }
+
+    foreach ($encargados['conflictos'] as $conflicto) {
+        escribir('  AVISO · ' . $conflicto['encargado'] . ' llega con teléfonos distintos: '
+            . implode(' / ', $conflicto['telefonos']) . ' (se conserva el primero)');
+    }
+
+    escribir();
+
+    $alumnos = $informe['alumnos'];
+    escribir('Alumnos');
+    escribir('  insertados             ' . $alumnos['insertados']);
+    escribir('  actualizados           ' . $alumnos['actualizados']);
+    escribir('  sin cambios            ' . $alumnos['sin_cambios']);
+    escribir('  viajan con encargado   ' . $alumnos['con_encargado']);
+    escribir('  sin encargado          ' . $alumnos['sin_encargado']);
+    escribir('  pagados al 100%        ' . $alumnos['pagados']);
+    escribir('  bloqueados             ' . $alumnos['bloqueados']);
+
+    foreach ($alumnos['errores'] as $error) {
+        escribir('  ERROR · ' . ($error['codigo'] !== '' ? $error['codigo'] : '(sin código)')
+            . ' ' . $error['nombre'] . ' → ' . $error['motivo']);
+    }
+
+    if ($alumnos['por_seccion'] !== []) {
+        escribir();
+        escribir('  Migrados por sección:  ' . implode(', ', array_map(
+            static fn (string $seccion, int $total): string => $seccion . '=' . $total,
+            array_keys($alumnos['por_seccion']),
+            $alumnos['por_seccion']
+        )));
     }
 }
 
@@ -125,16 +224,105 @@ switch ($comando) {
         }
         break;
 
+    case 'migrar-instituto':
+        titulo('Migración del padrón del Instituto Nacional de Apopa');
+
+        $opciones = opciones_cli(array_slice($argv, 2));
+        $simular = isset($opciones['simular']);
+
+        try {
+            $archivo = ruta_origen($opciones['archivo'] ?? null);
+        } catch (Throwable $excepcion) {
+            escribir($excepcion->getMessage());
+            exit(1);
+        }
+
+        escribir('Archivo:  ' . $archivo);
+        escribir('Modo:     ' . ($simular ? 'simulación (todo se revierte al final)' : 'migración real'));
+        escribir();
+
+        // 1. Esquema con el padrón de alumnos y el catálogo de profesores.
+        aplicar_migraciones(true);
+
+        if (!esquema_padron_disponible()) {
+            escribir('El esquema del padrón no está disponible. Ejecuta: php bin/rideroster migrar');
+            exit(1);
+        }
+
+        escribir('Esquema preparado (versión ' . parametro_int('esquema_version', 0) . ').');
+
+        // 2. Volcado de origen en una base temporal de solo lectura.
+        try {
+            $origen = abrir_origen($archivo);
+        } catch (Throwable $excepcion) {
+            escribir('No se pudo leer el origen: ' . $excepcion->getMessage());
+            exit(1);
+        }
+
+        escribir('Volcado cargado en la base temporal ' . BD_ORIGEN . '.');
+        escribir();
+
+        $informe = informe_vacio();
+        $informe['origen']['archivo'] = $archivo;
+
+        db()->beginTransaction();
+
+        try {
+            if (isset($opciones['limpiar'])) {
+                vaciar_padron();
+                escribir('Padrón vaciado antes de migrar.');
+            }
+
+            migrar_profesores($origen, $informe);
+            cargar_secciones($origen, $informe);
+            migrar_alumnos($origen, $informe);
+
+            if ($simular) {
+                db()->rollBack();
+            } else {
+                db()->commit();
+            }
+        } catch (Throwable $excepcion) {
+            db()->rollBack();
+            escribir('Migración abortada y revertida: ' . $excepcion->getMessage());
+            cerrar_origen();
+            exit(1);
+        }
+
+        cerrar_origen();
+        mostrar_informe($informe, $simular);
+
+        $bloqueados = $informe['alumnos']['bloqueados']
+            + count($informe['profesores']['errores'])
+            + count($informe['secciones']['errores'])
+            + count($informe['encargados']['errores']);
+
+        escribir();
+
+        if ($simular) {
+            escribir('Simulación terminada: no se guardó ningún cambio.');
+        } elseif ($bloqueados > 0) {
+            escribir('Migración terminada con ' . $bloqueados . ' registro(s) bloqueado(s), revisa el informe.');
+            mostrar_resumen();
+        } else {
+            escribir('Migración terminada sin errores.');
+            mostrar_resumen();
+        }
+
+        exit($bloqueados > 0 ? 2 : 0);
+
     case 'ayuda':
     default:
         titulo('RideRoster · herramienta de linea de comandos');
         escribir();
         escribir('Uso: php bin/rideroster <comando>');
         escribir();
-        escribir('  instalar   Crea la base de datos, aplica el esquema y carga datos de demostracion');
-        escribir('  migrar     Actualiza el esquema sin borrar informacion');
-        escribir('  estado     Muestra la conexion y el resumen de la base de datos');
-        escribir('  ayuda      Muestra esta ayuda');
+        escribir('  instalar            Crea la base de datos, aplica el esquema y carga datos de demostracion');
+        escribir('  migrar              Actualiza el esquema sin borrar informacion');
+        escribir('  migrar-instituto    Migra el padron de alumnos, secciones y profesores del instituto');
+        escribir('                      Opciones: --archivo=<ruta> --simular --limpiar');
+        escribir('  estado              Muestra la conexion y el resumen de la base de datos');
+        escribir('  ayuda               Muestra esta ayuda');
         escribir();
         escribir('Conexion: se toma de las variables de entorno DB_HOST, DB_PORT, DB_NAME, DB_USER y DB_PASS.');
         escribir('Sin variables se usan los valores de XAMPP: 127.0.0.1:3306, base rideroster, usuario root.');

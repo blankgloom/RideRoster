@@ -28,7 +28,16 @@
         nuevosNombres: [],
         filtroPaseos: '',
         estadisticas: null,
-        periodo: 'anual'
+        periodo: 'anual',
+        alumnos: null,
+        secciones: [],
+        resumenPadron: null,
+        totalAlumnos: 0,
+        filtroAlumnos: { q: '', anio: '', seccion_id: '' },
+        errorPadron: null,
+        profesores: null,
+        busquedaProfesores: '',
+        errorProfesores: null
     };
 
     var asientoArrastrado = null;
@@ -278,6 +287,88 @@
         });
     }
 
+    /**
+     * Copia el padrón recibido del API al estado de la vista.
+     */
+    function aplicarPadron(datos) {
+        estado.alumnos = datos.alumnos;
+        estado.secciones = datos.secciones;
+        estado.resumenPadron = datos.resumen;
+        estado.totalAlumnos = datos.total;
+    }
+
+    /**
+     * Carga el padrón completo (alumnos, secciones y resumen). Solo se pide al
+     * servidor cuando hace falta: después se filtra y agrupa en el navegador.
+     *
+     * @param {boolean} limpiar true para volver a pedirlo (recargar o guardar).
+     */
+    function cargarPadron(limpiar) {
+        if (limpiar) {
+            estado.alumnos = null;
+            estado.errorPadron = null;
+
+            if (estado.vista === 'alumnos') {
+                render();
+            }
+        }
+
+        if (estado.alumnos) {
+            return Promise.resolve();
+        }
+
+        return apiGet('alumnos').then(function (respuesta) {
+            aplicarPadron(respuesta.datos);
+            estado.errorPadron = null;
+
+            if (estado.vista === 'alumnos') {
+                render();
+            }
+        }).catch(function (error) {
+            estado.alumnos = [];
+            estado.errorPadron = error.message;
+
+            if (estado.vista === 'alumnos') {
+                render();
+            }
+        });
+    }
+
+    /**
+     * Carga el catálogo de profesores, que alimenta la vista de Profesores y
+     * el selector de profesor de cada paseo.
+     */
+    function cargarProfesores(limpiar) {
+        if (limpiar) {
+            estado.profesores = null;
+            estado.errorProfesores = null;
+
+            if (estado.vista === 'profesores') {
+                render();
+            }
+        }
+
+        if (estado.profesores) {
+            return Promise.resolve();
+        }
+
+        return apiGet('profesores').then(function (respuesta) {
+            estado.profesores = respuesta.datos;
+            estado.errorProfesores = null;
+
+            if (estado.vista === 'profesores') {
+                render();
+            }
+        }).catch(function (error) {
+            estado.profesores = [];
+            estado.errorProfesores = error.message;
+
+            if (estado.vista === 'profesores') {
+                render();
+            }
+        });
+    }
+
     function render() {
         var contenedor = $('#contenido');
 
@@ -285,6 +376,10 @@
             contenedor.innerHTML = vistaEstadisticas();
         } else if (estado.vista === 'administracion') {
             contenedor.innerHTML = vistaAdministracion();
+        } else if (estado.vista === 'alumnos') {
+            contenedor.innerHTML = vistaAlumnos();
+        } else if (estado.vista === 'profesores') {
+            contenedor.innerHTML = vistaProfesores();
         } else {
             contenedor.innerHTML = vistaInicio();
         }
@@ -1139,6 +1234,467 @@
             '</div>';
     }
 
+    /**
+     * Alumnos que pasan los filtros de la vista: búsqueda, año y sección.
+     *
+     * El padrón llega completo desde el API y aquí se filtra en el navegador,
+     * así los cambios de filtro son inmediatos.
+     */
+    function alumnosFiltrados() {
+        var filtro = estado.filtroAlumnos;
+        var termino = (filtro.q || '').trim().toLowerCase();
+
+        return (estado.alumnos || []).filter(function (alumno) {
+            if (filtro.anio && String(alumno.anio || '') !== filtro.anio) {
+                return false;
+            }
+
+            if (filtro.seccion_id && String(alumno.seccion_id || '') !== filtro.seccion_id) {
+                return false;
+            }
+
+            if (termino) {
+                var texto = [
+                    alumno.nombre, alumno.codigo, alumno.seccion, alumno.encargado,
+                    alumno.telefono, alumno.telefono_encargado
+                ].join(' ').toLowerCase();
+
+                if (texto.indexOf(termino) === -1) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+    }
+
+    /**
+     * Los alumnos ya vienen ordenados por sección desde el servidor, así que
+     * basta con cortar en cada cambio de sección para agruparlos.
+     *
+     * @return {Array<{nombre: string, alumnos: Array}>}
+     */
+    function gruposDeAlumnos() {
+        var grupos = [];
+        var porSeccion = {};
+
+        alumnosFiltrados().forEach(function (alumno) {
+            var clave = alumno.seccion_id || 0;
+
+            if (!porSeccion[clave]) {
+                porSeccion[clave] = { nombre: alumno.seccion || '', alumnos: [] };
+                grupos.push(porSeccion[clave]);
+            }
+
+            porSeccion[clave].alumnos.push(alumno);
+        });
+
+        return grupos;
+    }
+
+    function filaAlumno(alumno) {
+        var pago = alumno.estado_pago === 'pagado'
+            ? '<span class="pastilla exito sin-punto">Pagado</span>'
+            : '<span class="pastilla atencion sin-punto">Pendiente</span>';
+
+        return '<tr>' +
+            '<td><span class="celda-principal">' + escapar(alumno.nombre) + '</span>' +
+            '<span class="celda-secundaria numero">' + escapar(alumno.codigo) + '</span></td>' +
+            '<td>' + (alumno.telefono ? escapar(alumno.telefono) : '<span class="sin-dato">Sin teléfono</span>') + '</td>' +
+            '<td>' + (alumno.encargado
+                ? escapar(alumno.encargado) + '<span class="celda-secundaria">' +
+                  (alumno.telefono_encargado ? escapar(alumno.telefono_encargado) : 'Sin teléfono') + '</span>'
+                : '<span class="sin-dato">Sin encargado</span>') + '</td>' +
+            '<td>' + pago + '</td>' +
+            '<td>' + (alumno.activo
+                ? '<span class="pastilla primaria sin-punto">Activo</span>'
+                : '<span class="pastilla neutra sin-punto">Inactivo</span>') + '</td>' +
+            '<td class="columna-acciones">' +
+            '<button type="button" class="boton-icono" data-accion="editar-alumno" data-id="' + alumno.id + '" title="Editar alumno">' + icono(ICONOS.lapiz) + '</button>' +
+            '<button type="button" class="boton-icono peligro" data-accion="eliminar-alumno" data-id="' + alumno.id + '" title="Eliminar del padrón">' + icono(ICONOS.bote) + '</button>' +
+            '</td></tr>';
+    }
+
+    function filaSeccion(seccion) {
+        return '<tr>' +
+            '<td><span class="celda-principal">' + escapar(seccion.nombre) + '</span>' +
+            '<span class="celda-secundaria">' + (seccion.especialidad ? escapar(seccion.especialidad) : 'Sin especialidad') + '</span></td>' +
+            '<td class="numero">' + seccion.anio + '°</td>' +
+            '<td class="col-derecha numero">' + seccion.alumnos + '</td>' +
+            '<td class="columna-acciones">' +
+            '<button type="button" class="boton-icono" data-accion="editar-seccion" data-id="' + seccion.id + '" title="Editar sección">' + icono(ICONOS.lapiz) + '</button>' +
+            '<button type="button" class="boton-icono peligro" data-accion="eliminar-seccion" data-id="' + seccion.id + '" title="Eliminar sección">' + icono(ICONOS.bote) + '</button>' +
+            '</td></tr>';
+    }
+
+    function vistaAlumnos() {
+        var encabezado = '<div class="encabezado-vista">' +
+            '<div><h1>Alumnos</h1><p>Padrón del instituto ordenado por sección: código, encargado y estado de pago.</p></div>' +
+            '<div class="acciones-vista">' +
+            '<button type="button" class="boton boton-borde" data-accion="recargar-alumnos">' + icono(ICONOS.refrescar) + 'Actualizar</button>' +
+            '<button type="button" class="boton boton-secundario" data-accion="nueva-seccion">Nueva sección</button>' +
+            '<button type="button" class="boton boton-primario" data-accion="nuevo-alumno">' + icono(ICONOS.mas) + 'Nuevo alumno</button>' +
+            '</div></div>';
+
+        if (estado.errorPadron) {
+            return '<div class="vista">' + encabezado + '<section class="tarjeta"><div class="estado-vacio">' +
+                '<strong>No se pudo cargar el padrón</strong>' +
+                '<p>' + escapar(estado.errorPadron) + '</p>' +
+                '<button type="button" class="boton boton-primario" data-accion="recargar-alumnos">Reintentar</button>' +
+                '</div></section></div>';
+        }
+
+        if (!estado.alumnos) {
+            return '<div class="vista">' + encabezado +
+                '<div class="cargando"><span class="cargando-barra"></span><p>Cargando el padrón de alumnos</p></div></div>';
+        }
+
+        var resumen = estado.resumenPadron || { alumnos: 0, con_encargado: 0, pagados: 0, secciones: 0 };
+        var grupos = gruposDeAlumnos();
+
+        var anios = [];
+
+        estado.secciones.forEach(function (seccion) {
+            if (anios.indexOf(seccion.anio) === -1) {
+                anios.push(seccion.anio);
+            }
+        });
+
+        anios.sort(function (a, b) { return a - b; });
+
+        var opcionesAnio = '<option value="">Todos los años</option>' + anios.map(function (anio) {
+            return '<option value="' + anio + '"' + (estado.filtroAlumnos.anio === String(anio) ? ' selected' : '') + '>' +
+                anio + '° año</option>';
+        }).join('');
+
+        var opcionesSeccion = '<option value="">Todas las secciones</option>' + estado.secciones.map(function (seccion) {
+            return '<option value="' + seccion.id + '"' +
+                (estado.filtroAlumnos.seccion_id === String(seccion.id) ? ' selected' : '') + '>' +
+                escapar(seccion.nombre) + '</option>';
+        }).join('');
+
+        var filas = grupos.length ? grupos.map(function (grupo) {
+            return '<tr class="fila-grupo"><td colspan="6">' +
+                '<span class="fila-grupo-nombre">' + escapar(grupo.nombre || 'Sin sección') + '</span>' +
+                '<span class="fila-grupo-cuenta">' + grupo.alumnos.length +
+                (grupo.alumnos.length === 1 ? ' alumno' : ' alumnos') + '</span>' +
+                '</td></tr>' + grupo.alumnos.map(filaAlumno).join('');
+        }).join('') : '<tr><td colspan="6"><div class="estado-vacio compacto">' +
+            '<strong>Sin alumnos que coincidan</strong>' +
+            '<p>Ajusta la búsqueda o los filtros de sección.</p></div></td></tr>';
+
+        var filasSecciones = estado.secciones.length ? estado.secciones.map(filaSeccion).join('')
+            : '<tr><td colspan="4"><div class="estado-vacio compacto">' +
+              '<strong>Sin secciones</strong><p>Crea la primera sección para agrupar el padrón.</p></div></td></tr>';
+
+        var metrica = function (etiqueta, valor, detalle) {
+            return '<div class="parametro-fila"><div><p class="celda-principal">' + etiqueta + '</p>' +
+                '<p class="descripcion">' + detalle + '</p></div>' +
+                '<div class="parametro-valor"><span class="parametro-fijo numero">' + valor + '</span></div></div>';
+        };
+
+        return '<div class="vista">' + encabezado +
+            '<div class="rejilla-lateral">' +
+            '<div class="columna">' +
+            '<section class="tarjeta">' +
+            '<div class="tarjeta-cabecera"><div><h2>Padrón</h2>' +
+            '<p>' + estado.totalAlumnos + (estado.totalAlumnos === 1 ? ' alumno' : ' alumnos') +
+            ' en ' + resumen.secciones + (resumen.secciones === 1 ? ' sección' : ' secciones') + '</p></div></div>' +
+            '<div class="tarjeta-filtros-barra"><div class="buscador">' + icono(ICONOS.lupa) +
+            '<input type="search" class="control" id="busqueda-alumnos" placeholder="Buscar por nombre, código o encargado" value="' +
+            escapar(estado.filtroAlumnos.q) + '"></div>' +
+            '<select class="control" id="filtro-alumnos-anio" aria-label="Filtrar por año">' + opcionesAnio + '</select>' +
+            '<select class="control" id="filtro-alumnos-seccion" aria-label="Filtrar por sección">' + opcionesSeccion + '</select>' +
+            '</div>' +
+            '<div class="tabla-envoltura tabla-alta"><table class="tabla"><thead><tr>' +
+            '<th>Alumno</th><th>Teléfono</th><th>Encargado</th><th>Pago</th><th>Estado</th><th></th>' +
+            '</tr></thead><tbody>' + filas + '</tbody></table></div>' +
+            '</section>' +
+            '</div>' +
+            '<div class="columna">' +
+            '<section class="tarjeta">' +
+            '<div class="tarjeta-cabecera"><h3>Resumen del padrón</h3></div>' +
+            '<div class="tarjeta-cuerpo compacto"><div class="tarjeta-parametros">' +
+            metrica('Alumnos', resumen.alumnos, 'inscritos en el padrón') +
+            metrica('Con encargado', resumen.con_encargado, 'viajan acompañados') +
+            metrica('Pagados', resumen.pagados, 'al 100% desde la migración') +
+            metrica('Secciones', resumen.secciones, 'con alumnos inscritos') +
+            '</div></div></section>' +
+            '<section class="tarjeta">' +
+            '<div class="tarjeta-cabecera"><div><h2>Secciones</h2>' +
+            '<p>Ordenan el padrón por año y grupo</p></div>' +
+            '<button type="button" class="boton boton-borde boton-pequeno" data-accion="nueva-seccion">Agregar</button></div>' +
+            '<div class="tabla-envoltura tabla-media"><table class="tabla tabla-compacta"><thead><tr>' +
+            '<th>Sección</th><th>Año</th><th class="col-derecha">Alumnos</th><th></th>' +
+            '</tr></thead><tbody>' + filasSecciones + '</tbody></table></div>' +
+            '</section>' +
+            '</div>' +
+            '</div></div>';
+    }
+
+    function filaProfesor(profesor) {
+        var permiso = profesor.permiso === 'Concedido'
+            ? '<span class="pastilla exito sin-punto">Concedido</span>'
+            : '<span class="pastilla error sin-punto">Denegado</span>';
+
+        var detalle = (profesor.sexo === 'M' ? 'Hombre' : 'Mujer') +
+            (profesor.especialidad_cargo ? ' · ' + profesor.especialidad_cargo : '');
+
+        return '<tr>' +
+            '<td><span class="celda-principal">' + escapar(profesor.nombre) + '</span>' +
+            '<span class="celda-secundaria">' + escapar(detalle) + '</span></td>' +
+            '<td class="numero celda-codigo">' + escapar(profesor.codigo) + '</td>' +
+            '<td>' + permiso + '</td>' +
+            '<td>' + (profesor.fecha_nacimiento && profesor.fecha_nacimiento !== '0000-00-00'
+                ? fechaCorta(profesor.fecha_nacimiento) : '<span class="sin-dato">Sin fecha</span>') + '</td>' +
+            '<td>' + (profesor.activo
+                ? '<span class="pastilla primaria sin-punto">Activo</span>'
+                : '<span class="pastilla neutra sin-punto">Inactivo</span>') + '</td>' +
+            '<td class="columna-acciones">' +
+            '<button type="button" class="boton-icono" data-accion="editar-profesor" data-id="' + profesor.id + '" title="Editar profesor">' + icono(ICONOS.lapiz) + '</button>' +
+            '<button type="button" class="boton-icono peligro" data-accion="eliminar-profesor" data-id="' + profesor.id + '" title="Eliminar profesor">' + icono(ICONOS.bote) + '</button>' +
+            '</td></tr>';
+    }
+
+    function vistaProfesores() {
+        var encabezado = '<div class="encabezado-vista">' +
+            '<div><h1>Profesores</h1><p>Catálogo docente del instituto. De aquí se elige el profesor responsable de cada paseo.</p></div>' +
+            '<div class="acciones-vista">' +
+            '<button type="button" class="boton boton-borde" data-accion="recargar-profesores">' + icono(ICONOS.refrescar) + 'Actualizar</button>' +
+            '<button type="button" class="boton boton-primario" data-accion="nuevo-profesor">' + icono(ICONOS.mas) + 'Nuevo profesor</button>' +
+            '</div></div>';
+
+        if (estado.errorProfesores) {
+            return '<div class="vista">' + encabezado + '<section class="tarjeta"><div class="estado-vacio">' +
+                '<strong>No se pudo cargar el catálogo de profesores</strong>' +
+                '<p>' + escapar(estado.errorProfesores) + '</p>' +
+                '<button type="button" class="boton boton-primario" data-accion="recargar-profesores">Reintentar</button>' +
+                '</div></section></div>';
+        }
+
+        if (!estado.profesores) {
+            return '<div class="vista">' + encabezado +
+                '<div class="cargando"><span class="cargando-barra"></span><p>Cargando el catálogo de profesores</p></div></div>';
+        }
+
+        var termino = estado.busquedaProfesores.trim().toLowerCase();
+
+        var lista = estado.profesores.filter(function (profesor) {
+            if (!termino) {
+                return true;
+            }
+
+            return [profesor.nombre, profesor.codigo, profesor.especialidad_cargo, profesor.permiso]
+                .join(' ').toLowerCase().indexOf(termino) !== -1;
+        });
+
+        var filas = lista.length ? lista.map(filaProfesor).join('')
+            : '<tr><td colspan="6"><div class="estado-vacio compacto">' +
+              '<strong>Sin profesores que coincidan</strong><p>Ajusta la búsqueda o agrega un profesor nuevo.</p></div></td></tr>';
+
+        var activos = estado.profesores.filter(function (profesor) { return profesor.activo === 1; }).length;
+        var concedidos = estado.profesores.filter(function (profesor) { return profesor.permiso === 'Concedido'; }).length;
+        var mujeres = estado.profesores.filter(function (profesor) { return profesor.sexo === 'F'; }).length;
+
+        var metrica = function (etiqueta, valor, detalle) {
+            return '<div class="parametro-fila"><div><p class="celda-principal">' + etiqueta + '</p>' +
+                '<p class="descripcion">' + detalle + '</p></div>' +
+                '<div class="parametro-valor"><span class="parametro-fijo numero">' + valor + '</span></div></div>';
+        };
+
+        return '<div class="vista">' + encabezado +
+            '<div class="rejilla-lateral">' +
+            '<div class="columna">' +
+            '<section class="tarjeta">' +
+            '<div class="tarjeta-cabecera"><div><h2>Catálogo docente</h2>' +
+            '<p>' + estado.profesores.length + (estado.profesores.length === 1 ? ' profesor' : ' profesores') + ' registrados</p></div>' +
+            '<div class="tarjeta-filtros"><div class="buscador">' + icono(ICONOS.lupa) +
+            '<input type="search" class="control" id="busqueda-profesores" placeholder="Buscar por nombre, código o cargo" value="' +
+            escapar(estado.busquedaProfesores) + '"></div></div></div>' +
+            '<div class="tabla-envoltura tabla-alta"><table class="tabla"><thead><tr>' +
+            '<th>Profesor</th><th>Código</th><th>Permiso</th><th>Nacimiento</th><th>Estado</th><th></th>' +
+            '</tr></thead><tbody>' + filas + '</tbody></table></div>' +
+            '</section>' +
+            '</div>' +
+            '<div class="columna">' +
+            '<section class="tarjeta">' +
+            '<div class="tarjeta-cabecera"><h3>Resumen</h3></div>' +
+            '<div class="tarjeta-cuerpo compacto"><div class="tarjeta-parametros">' +
+            metrica('Profesores', estado.profesores.length, 'en el catálogo del instituto') +
+            metrica('Activos', activos, 'disponibles para viajar') +
+            metrica('Permiso concedido', concedidos, 'autorizados para salir') +
+            metrica('Mujeres', mujeres, (estado.profesores.length - mujeres) + ' hombres') +
+            '</div></div></section>' +
+            '<section class="tarjeta">' +
+            '<div class="tarjeta-cabecera"><h3>Profesor de cada paseo</h3></div>' +
+            '<div class="tarjeta-cuerpo compacto">' +
+            '<p class="texto-apagado nota-pequena">Al crear o editar un paseo en Administración, el profesor se elige de esta lista: ' +
+            'ya no se escribe a mano. Solo los profesores activos aparecen en ese selector.</p>' +
+            '<div class="acciones-vista separado">' +
+            '<button type="button" class="boton boton-borde" data-accion="ir-administracion">Ir a Administración</button>' +
+            '</div></div></section>' +
+            '</div>' +
+            '</div></div>';
+    }
+
+    function abrirModalAlumno(alumnoId) {
+        var alumno = null;
+
+        if (alumnoId) {
+            alumno = (estado.alumnos || []).filter(function (item) { return item.id === alumnoId; })[0] || null;
+        }
+
+        if (alumnoId && !alumno) {
+            aviso('Alumno no encontrado', 'Actualiza el padrón e intenta de nuevo.', 'error');
+            return;
+        }
+
+        var opcionesSeccion = '<option value="">Sin sección</option>' + estado.secciones.map(function (seccion) {
+            return '<option value="' + seccion.id + '"' +
+                (alumno && alumno.seccion_id === seccion.id ? ' selected' : '') + '>' +
+                escapar(seccion.nombre) + ' · ' + seccion.anio + '° año</option>';
+        }).join('');
+
+        var contenido = '<form class="formulario" id="formulario-alumno"' +
+            (alumno ? ' data-id="' + alumno.id + '"' : '') + '>' +
+            '<div class="formulario dos-columnas">' +
+            '<div class="campo"><label class="campo-etiqueta" for="alumno-codigo">Código</label>' +
+            '<input type="text" class="control" id="alumno-codigo" name="codigo" placeholder="Ej. 2B03" value="' +
+            escapar(alumno ? alumno.codigo : '') + '"></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="alumno-nombre">Nombre completo</label>' +
+            '<input type="text" class="control" id="alumno-nombre" name="nombre" placeholder="Nombres y apellidos" value="' +
+            escapar(alumno ? alumno.nombre : '') + '"></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="alumno-seccion">Sección</label>' +
+            '<select class="control" id="alumno-seccion" name="seccion_id">' + opcionesSeccion + '</select></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="alumno-telefono">Teléfono</label>' +
+            '<input type="text" class="control" id="alumno-telefono" name="telefono" placeholder="Opcional" value="' +
+            escapar(alumno ? alumno.telefono || '' : '') + '"></div>' +
+            '</div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="alumno-encargado">Encargado</label>' +
+            '<input type="text" class="control" id="alumno-encargado" name="encargado" placeholder="Nombre completo del encargado" value="' +
+            escapar(alumno ? alumno.encargado || '' : '') + '">' +
+            '<p class="campo-ayuda">Déjalo vacío si viaja sin encargado. Si el nombre ya existe en la base de datos se vincula a su ficha; si no, se crea al guardar.</p></div>' +
+            '<div class="formulario dos-columnas">' +
+            '<div class="campo"><label class="campo-etiqueta" for="alumno-telefono-encargado">Teléfono del encargado</label>' +
+            '<input type="text" class="control" id="alumno-telefono-encargado" name="telefono_encargado" placeholder="Opcional" value="' +
+            escapar(alumno ? alumno.telefono_encargado || '' : '') + '"></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="alumno-pago">Estado de pago</label>' +
+            '<select class="control" id="alumno-pago" name="estado_pago">' +
+            '<option value="pagado"' + (!alumno || alumno.estado_pago === 'pagado' ? ' selected' : '') + '>Pagado al 100%</option>' +
+            '<option value="pendiente"' + (alumno && alumno.estado_pago === 'pendiente' ? ' selected' : '') + '>Pendiente</option>' +
+            '</select></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="alumno-activo">Situación</label>' +
+            '<select class="control" id="alumno-activo" name="activo">' +
+            '<option value="1"' + (!alumno || alumno.activo ? ' selected' : '') + '>Activo</option>' +
+            '<option value="0"' + (alumno && !alumno.activo ? ' selected' : '') + '>Inactivo</option>' +
+            '</select></div>' +
+            '</div>' +
+            '</form>';
+
+        var pie = '<div class="grupo-botones"><button type="button" class="boton boton-borde" data-accion="cerrar-modal">Cancelar</button>' +
+            '<button type="submit" form="formulario-alumno" class="boton boton-primario">' + icono(ICONOS.cheque) +
+            (alumno ? 'Guardar cambios' : 'Agregar al padrón') + '</button></div>';
+
+        modal(alumno ? 'Editar alumno' : 'Nuevo alumno', alumno ? alumno.codigo : 'Padrón del instituto', contenido, pie);
+    }
+
+    function abrirModalProfesor(profesorId) {
+        var profesor = null;
+
+        if (profesorId) {
+            profesor = (estado.profesores || []).filter(function (item) { return item.id === profesorId; })[0] || null;
+        }
+
+        if (profesorId && !profesor) {
+            aviso('Profesor no encontrado', 'Actualiza el catálogo e intenta de nuevo.', 'error');
+            return;
+        }
+
+        var contenido = '<form class="formulario" id="formulario-profesor"' +
+            (profesor ? ' data-id="' + profesor.id + '"' : '') + '>' +
+            '<div class="formulario dos-columnas">' +
+            '<div class="campo"><label class="campo-etiqueta" for="profesor-codigo">Código</label>' +
+            '<input type="text" class="control" id="profesor-codigo" name="codigo" placeholder="Ej. P032" value="' +
+            escapar(profesor ? profesor.codigo : '') + '"></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="profesor-sexo">Sexo</label>' +
+            '<select class="control" id="profesor-sexo" name="sexo">' +
+            '<option value="M"' + (!profesor || profesor.sexo === 'M' ? ' selected' : '') + '>Hombre (M)</option>' +
+            '<option value="F"' + (profesor && profesor.sexo === 'F' ? ' selected' : '') + '>Mujer (F)</option>' +
+            '</select></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="profesor-nombres">Nombres</label>' +
+            '<input type="text" class="control" id="profesor-nombres" name="nombres" value="' +
+            escapar(profesor ? profesor.nombres : '') + '"></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="profesor-apellidos">Apellidos</label>' +
+            '<input type="text" class="control" id="profesor-apellidos" name="apellidos" value="' +
+            escapar(profesor ? profesor.apellidos : '') + '"></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="profesor-cargo">Cargo o especialidad</label>' +
+            '<input type="text" class="control" id="profesor-cargo" name="especialidad_cargo" placeholder="Ej. Desarrollo de Software" value="' +
+            escapar(profesor ? profesor.especialidad_cargo : '') + '"></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="profesor-nacimiento">Fecha de nacimiento</label>' +
+            '<input type="date" class="control" id="profesor-nacimiento" name="fecha_nacimiento" value="' +
+            escapar(profesor && profesor.fecha_nacimiento !== '0000-00-00' ? String(profesor.fecha_nacimiento).slice(0, 10) : '') + '"></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="profesor-permiso">Permiso de salida</label>' +
+            '<select class="control" id="profesor-permiso" name="permiso">' +
+            '<option value="Concedido"' + (!profesor || profesor.permiso === 'Concedido' ? ' selected' : '') + '>Concedido</option>' +
+            '<option value="Denegado"' + (profesor && profesor.permiso === 'Denegado' ? ' selected' : '') + '>Denegado</option>' +
+            '</select></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="profesor-registro">Fecha de registro</label>' +
+            '<input type="date" class="control" id="profesor-registro" name="fecha_registro" value="' +
+            escapar(profesor && profesor.fecha_registro ? String(profesor.fecha_registro).slice(0, 10) : '') + '"></div>' +
+            '</div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="profesor-alergias">Alergias</label>' +
+            '<textarea class="control" id="profesor-alergias" name="alergias" placeholder="Opcional">' +
+            escapar(profesor ? profesor.alergias || '' : '') + '</textarea></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="profesor-activo">Situación</label>' +
+            '<select class="control" id="profesor-activo" name="activo">' +
+            '<option value="1"' + (!profesor || profesor.activo ? ' selected' : '') + '>Activo</option>' +
+            '<option value="0"' + (profesor && !profesor.activo ? ' selected' : '') + '>Inactivo</option>' +
+            '</select></div>' +
+            '</form>';
+
+        var pie = '<div class="grupo-botones"><button type="button" class="boton boton-borde" data-accion="cerrar-modal">Cancelar</button>' +
+            '<button type="submit" form="formulario-profesor" class="boton boton-primario">' + icono(ICONOS.cheque) +
+            (profesor ? 'Guardar cambios' : 'Registrar profesor') + '</button></div>';
+
+        modal(profesor ? 'Editar profesor' : 'Nuevo profesor',
+            profesor ? profesor.nombre : 'Catálogo docente', contenido, pie);
+    }
+
+    function abrirModalSeccion(seccionId) {
+        var seccion = null;
+
+        if (seccionId) {
+            seccion = estado.secciones.filter(function (item) { return item.id === seccionId; })[0] || null;
+        }
+
+        if (seccionId && !seccion) {
+            aviso('Sección no encontrada', 'Actualiza la lista e intenta de nuevo.', 'error');
+            return;
+        }
+
+        var contenido = '<form class="formulario" id="formulario-seccion"' +
+            (seccion ? ' data-id="' + seccion.id + '"' : '') + '>' +
+            '<div class="formulario dos-columnas">' +
+            '<div class="campo"><label class="campo-etiqueta" for="seccion-nombre">Sección</label>' +
+            '<input type="text" class="control" id="seccion-nombre" name="nombre" placeholder="Ej. 2B" value="' +
+            escapar(seccion ? seccion.nombre : '') + '"></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="seccion-anio">Año escolar</label>' +
+            '<input type="number" class="control numero" id="seccion-anio" name="anio" min="1" max="9" value="' +
+            (seccion ? seccion.anio : 1) + '"></div>' +
+            '</div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="seccion-especialidad">Especialidad</label>' +
+            '<input type="text" class="control" id="seccion-especialidad" name="especialidad" placeholder="Ej. Desarrollo de Software" value="' +
+            escapar(seccion ? seccion.especialidad || '' : '') + '">' +
+            '<p class="campo-ayuda">Si dejas el año vacío se toma de la primera cifra del nombre.</p></div>' +
+            '</form>';
+
+        var pie = '<div class="grupo-botones"><button type="button" class="boton boton-borde" data-accion="cerrar-modal">Cancelar</button>' +
+            '<button type="submit" form="formulario-seccion" class="boton boton-primario">' + icono(ICONOS.cheque) +
+            (seccion ? 'Guardar cambios' : 'Crear sección') + '</button></div>';
+
+        modal(seccion ? 'Editar sección' : 'Nueva sección', 'Secciones del instituto', contenido, pie);
+    }
+
     function abrirModalViaje(viajeId, enfocarAlta) {
         estado.viajeModalId = viajeId;
         estado.enfocarAlta = Boolean(enfocarAlta);
@@ -1594,6 +2150,14 @@
     }
 
     function abrirModalPaseo(paseoId) {
+        // El profesor se elige del catálogo, así que hay que tenerlo cargado.
+        if (!estado.profesores) {
+            cargarProfesores(false).then(function () {
+                abrirModalPaseo(paseoId);
+            });
+            return;
+        }
+
         var paseo = paseoId ? estado.paseos.filter(function (item) { return item.id === paseoId; })[0] : null;
         var seleccionados = paseo ? paseo.equipo_salvamento.map(function (persona) { return persona.id; }) : [];
         estado.nuevosNombres = [];
@@ -1602,6 +2166,21 @@
             return '<label><input type="checkbox" name="personal" value="' + persona.id + '"' + (seleccionados.indexOf(persona.id) !== -1 ? ' checked' : '') + '>' +
                 '<span>' + escapar(persona.nombre) + '</span></label>';
         }).join('');
+
+        var opcionesProfesor = '<option value="">Selecciona un profesor</option>' + (estado.profesores || []).filter(function (profesor) {
+            return profesor.activo === 1 || (paseo && profesor.id === paseo.profesor_id);
+        }).map(function (profesor) {
+            var elegido = paseo && paseo.profesor_id === profesor.id;
+
+            return '<option value="' + profesor.id + '"' + (elegido ? ' selected' : '') + '>' +
+                escapar(profesor.nombre) + (profesor.especialidad_cargo ? ' · ' + escapar(profesor.especialidad_cargo) : '') +
+                '</option>';
+        }).join('');
+
+        // Un paseo guardado solo con texto conserva su nombre hasta que se vincule.
+        if (paseo && !paseo.profesor_id && paseo.profesor_encargado) {
+            opcionesProfesor += '<option value="0" selected>' + escapar(paseo.profesor_encargado) + ' · sin vincular</option>';
+        }
 
         var contenido = '<form class="formulario" id="formulario-paseo"' + (paseo ? ' data-id="' + paseo.id + '"' : '') + '>' +
             '<div class="formulario dos-columnas">' +
@@ -1612,7 +2191,8 @@
             '<div class="campo"><label class="campo-etiqueta" for="paseo-costo">Costo por persona</label>' +
             '<input type="number" class="control numero" id="paseo-costo" name="costo_persona" step="0.01" min="0" value="' + (paseo ? paseo.costo_persona : '') + '"></div>' +
             '<div class="campo"><label class="campo-etiqueta" for="paseo-profesor">Profesor a cargo</label>' +
-            '<input type="text" class="control" id="paseo-profesor" name="profesor_encargado" placeholder="Nombre del docente responsable" value="' + escapar(paseo ? paseo.profesor_encargado : '') + '"></div>' +
+            '<select class="control" id="paseo-profesor" name="profesor_id">' + opcionesProfesor + '</select>' +
+            '<input type="hidden" name="profesor_encargado" value="' + escapar(paseo ? paseo.profesor_encargado : '') + '"></div>' +
             '</div>' +
             '<div class="campo"><label class="campo-etiqueta" for="paseo-descripcion">Descripción</label>' +
             '<textarea class="control" id="paseo-descripcion" name="descripcion" placeholder="Actividades previstas para el paseo">' + escapar(paseo ? paseo.descripcion || '' : '') + '</textarea></div>' +
@@ -2447,6 +3027,108 @@
                 });
                 break;
 
+            case 'recargar-alumnos':
+                cargarPadron(true);
+                break;
+
+            case 'recargar-profesores':
+                cargarProfesores(true);
+                break;
+
+            case 'ir-administracion':
+                cambiarVista('administracion');
+                break;
+
+            case 'nuevo-alumno':
+                abrirModalAlumno(null);
+                break;
+
+            case 'editar-alumno':
+                abrirModalAlumno(Number(id));
+                break;
+
+            case 'eliminar-alumno':
+                confirmar(
+                    'Eliminar alumno del padrón',
+                    'El alumno se quitará del padrón y de su sección. Si ya participó en un viaje no se podrá borrar: en ese caso márcalo como inactivo.',
+                    'Eliminar',
+                    'confirmar-eliminar-alumno',
+                    { id: Number(id) }
+                );
+                break;
+
+            case 'confirmar-eliminar-alumno':
+                apiPost('alumnos', {}, 'eliminar', { id: Number(id) }).then(function (respuesta) {
+                    aplicarPadron(respuesta.datos);
+                    cerrarModal();
+                    render();
+                    aviso('Alumno eliminado', respuesta.mensaje || 'El alumno salió del padrón.', 'exito');
+                }).catch(function (error) {
+                    cerrarModal();
+                    aviso('No se pudo eliminar', error.message, 'error');
+                });
+                break;
+
+            case 'nueva-seccion':
+                abrirModalSeccion(null);
+                break;
+
+            case 'editar-seccion':
+                abrirModalSeccion(Number(id));
+                break;
+
+            case 'eliminar-seccion':
+                confirmar(
+                    'Eliminar sección',
+                    'La sección solo se puede eliminar cuando no tiene alumnos inscritos.',
+                    'Eliminar',
+                    'confirmar-eliminar-seccion',
+                    { id: Number(id) }
+                );
+                break;
+
+            case 'confirmar-eliminar-seccion':
+                apiPost('secciones', {}, 'eliminar', { id: Number(id) }).then(function (respuesta) {
+                    aplicarPadron(respuesta.datos);
+                    cerrarModal();
+                    render();
+                    aviso('Sección eliminada', respuesta.mensaje || 'La sección salió del catálogo.', 'exito');
+                }).catch(function (error) {
+                    cerrarModal();
+                    aviso('No se pudo eliminar', error.message, 'error');
+                });
+                break;
+
+            case 'nuevo-profesor':
+                abrirModalProfesor(null);
+                break;
+
+            case 'editar-profesor':
+                abrirModalProfesor(Number(id));
+                break;
+
+            case 'eliminar-profesor':
+                confirmar(
+                    'Eliminar profesor',
+                    'El profesor se quitará del catálogo. Si tiene paseos asignados no se podrá borrar: en ese caso márcalo como inactivo.',
+                    'Eliminar',
+                    'confirmar-eliminar-profesor',
+                    { id: Number(id) }
+                );
+                break;
+
+            case 'confirmar-eliminar-profesor':
+                apiPost('profesores', {}, 'eliminar', { id: Number(id) }).then(function (respuesta) {
+                    estado.profesores = respuesta.datos;
+                    cerrarModal();
+                    render();
+                    aviso('Profesor eliminado', respuesta.mensaje || 'El profesor salió del catálogo.', 'exito');
+                }).catch(function (error) {
+                    cerrarModal();
+                    aviso('No se pudo eliminar', error.message, 'error');
+                });
+                break;
+
             default:
                 break;
         }
@@ -2467,6 +3149,7 @@
                 return Number(elemento.value);
             });
 
+            datosPaseo.profesor_id = Number(datosPaseo.profesor_id || 0);
             datosPaseo.personal_ids = seleccionados;
             datosPaseo.personal = estado.nuevosNombres;
 
@@ -2616,6 +3299,62 @@
                 aviso('No se pudo registrar', error.message, 'error');
             });
         }
+
+        if (formulario.id === 'formulario-alumno') {
+            var datosAlumno = collectedFormulario('formulario-alumno');
+            var idAlumno = formulario.getAttribute('data-id');
+
+            datosAlumno.seccion_id = Number(datosAlumno.seccion_id || 0);
+
+            var peticionAlumno = idAlumno
+                ? apiPost('alumnos', datosAlumno, 'actualizar', { id: Number(idAlumno) })
+                : apiPost('alumnos', datosAlumno);
+
+            peticionAlumno.then(function (respuesta) {
+                aplicarPadron(respuesta.datos);
+                cerrarModal();
+                render();
+                aviso('Padrón actualizado', respuesta.mensaje || 'Los datos del alumno quedaron guardados.', 'exito');
+            }).catch(function (error) {
+                aviso('No se pudo guardar', error.message, 'error');
+            });
+        }
+
+        if (formulario.id === 'formulario-profesor') {
+            var datosProfesor = collectedFormulario('formulario-profesor');
+            var idProfesor = formulario.getAttribute('data-id');
+
+            var peticionProfesor = idProfesor
+                ? apiPost('profesores', datosProfesor, 'actualizar', { id: Number(idProfesor) })
+                : apiPost('profesores', datosProfesor);
+
+            peticionProfesor.then(function (respuesta) {
+                estado.profesores = respuesta.datos;
+                cerrarModal();
+                render();
+                aviso('Profesor guardado', respuesta.mensaje || 'Los datos del profesor quedaron guardados.', 'exito');
+            }).catch(function (error) {
+                aviso('No se pudo guardar', error.message, 'error');
+            });
+        }
+
+        if (formulario.id === 'formulario-seccion') {
+            var datosSeccion = collectedFormulario('formulario-seccion');
+            var idSeccion = formulario.getAttribute('data-id');
+
+            var peticionSeccion = idSeccion
+                ? apiPost('secciones', datosSeccion, 'actualizar', { id: Number(idSeccion) })
+                : apiPost('secciones', datosSeccion);
+
+            peticionSeccion.then(function (respuesta) {
+                aplicarPadron(respuesta.datos);
+                cerrarModal();
+                render();
+                aviso('Sección guardada', respuesta.mensaje || 'La sección quedó registrada.', 'exito');
+            }).catch(function (error) {
+                aviso('No se pudo guardar', error.message, 'error');
+            });
+        }
     }
 
     function cambiarVista(vista) {
@@ -2629,6 +3368,14 @@
 
         if (vista === 'estadisticas') {
             cargarEstadisticas(false);
+        }
+
+        if (vista === 'alumnos') {
+            cargarPadron(false);
+        }
+
+        if (vista === 'profesores') {
+            cargarProfesores(false);
         }
 
         render();
@@ -2674,6 +3421,28 @@
                 }
             }
 
+            if (evento.target.id === 'busqueda-alumnos') {
+                estado.filtroAlumnos.q = evento.target.value;
+                var posicionAlumnos = evento.target.selectionStart;
+                render();
+                var campoAlumnos = $('#busqueda-alumnos');
+                if (campoAlumnos) {
+                    campoAlumnos.focus();
+                    campoAlumnos.setSelectionRange(posicionAlumnos, posicionAlumnos);
+                }
+            }
+
+            if (evento.target.id === 'busqueda-profesores') {
+                estado.busquedaProfesores = evento.target.value;
+                var posicionProfesores = evento.target.selectionStart;
+                render();
+                var campoProfesores = $('#busqueda-profesores');
+                if (campoProfesores) {
+                    campoProfesores.focus();
+                    campoProfesores.setSelectionRange(posicionProfesores, posicionProfesores);
+                }
+            }
+
             if (evento.target.id === 'pasajero-codigo') {
                 estado.formPasajero.codigo = evento.target.value;
                 validarFormatoCodigo(evento.target);
@@ -2693,6 +3462,16 @@
         });
 
         document.addEventListener('change', function (evento) {
+            if (evento.target.id === 'filtro-alumnos-anio') {
+                estado.filtroAlumnos.anio = evento.target.value;
+                render();
+            }
+
+            if (evento.target.id === 'filtro-alumnos-seccion') {
+                estado.filtroAlumnos.seccion_id = evento.target.value;
+                render();
+            }
+
             if (evento.target.id === 'pasajero-con-encargado') {
                 estado.formPasajero.conEncargado = evento.target.checked;
                 alternarEncargado(evento.target.checked);
@@ -2821,6 +3600,7 @@
         }, 1000);
 
         cargarPanel();
+        cargarProfesores(false);
     }
 
     if (document.readyState === 'loading') {

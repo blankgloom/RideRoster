@@ -161,6 +161,7 @@ svg {
 .pestanas {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 0.25rem;
     margin-left: 0.5rem;
 }
@@ -929,6 +930,31 @@ svg {
 
 .tabla-compacta tbody td {
     padding: 0.5rem 0.75rem;
+}
+
+/* Encabezado de grupo del padrón: una fila por sección */
+
+.fila-grupo td {
+    background: var(--color-superficie-alterna);
+    padding-top: 0.875rem;
+    padding-bottom: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+}
+
+.fila-grupo-nombre {
+    color: var(--color-primario);
+}
+
+.fila-grupo-cuenta {
+    display: inline-block;
+    margin-left: 0.5rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--color-texto-apagado);
 }
 
 .celda-principal {
@@ -1725,6 +1751,29 @@ select.control {
 
 .buscador .control {
     padding-left: 2.125rem;
+}
+
+/* Los filtros van en una fila: la búsqueda ocupa lo que sobra y los selectores
+   conservan solo el ancho de su texto. */
+.tarjeta-filtros select.control {
+    width: auto;
+    min-width: 9.5rem;
+}
+
+/* Filtros en su propia fila, a lo ancho de la tarjeta */
+
+.tarjeta-filtros-barra {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--color-borde);
+}
+
+.tarjeta-filtros-barra select.control {
+    width: auto;
+    min-width: 9.5rem;
 }
 
 .tarjeta-parametros {

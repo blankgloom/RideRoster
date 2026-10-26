@@ -23,11 +23,11 @@ que ya incluye Apache, PHP y MariaDB.
 
 ```
 RideRoster/
-├── index.php            Interfaz del sistema (pestañas Inicio y Administración)
+├── index.php            Interfaz del sistema (pestañas Inicio, Alumnos, Profesores, Administración y Estadísticas)
 ├── listado.php          Listado de abordaje imprimible (PDF)
-├── bin/rideroster       Herramienta de terminal: instalar, migrar, estado
+├── bin/rideroster       Herramienta de terminal: instalar, migrar, migrar-instituto, estado
 ├── api/index.php        API JSON del sistema
-├── app/                 Configuración, base de datos, consultas y lógica de negocio
+├── app/                 Configuración, base de datos, padrón, consultas y lógica de negocio
 ├── assets/              Hojas de estilo y JavaScript de la interfaz
 ├── database/schema.sql  Esquema de la base de datos
 ├── DESIGN.md            Sistema de diseño (paleta, tipografía, componentes)
@@ -100,10 +100,11 @@ variables de entorno del servidor.
 ## 6. Comandos de la herramienta
 
 ```bash
-php bin/rideroster ayuda      # Muestra la lista de comandos
-php bin/rideroster instalar   # Crea la base, aplica el esquema y carga la demostración
-php bin/rideroster migrar     # Actualiza el esquema sin borrar información
-php bin/rideroster estado     # Muestra la conexión y el resumen de la base de datos
+php bin/rideroster ayuda             # Muestra la lista de comandos
+php bin/rideroster instalar          # Crea la base, aplica el esquema y carga la demostración
+php bin/rideroster migrar            # Actualiza el esquema sin borrar información
+php bin/rideroster migrar-instituto  # Migra el padrón de alumnos, secciones y profesores del instituto
+php bin/rideroster estado            # Muestra la conexión y el resumen de la base de datos
 ```
 
 `instalar` es idempotente: se puede ejecutar las veces que haga falta.
@@ -114,11 +115,15 @@ php bin/rideroster estado     # Muestra la conexión y el resumen de la base de 
 
 | Tabla | Contenido |
 | --- | --- |
+| `alumnos` | Padrón del instituto: código, nombre, teléfono, encargado, estado de pago y sección |
+| `secciones` | Secciones del instituto: nombre, año y especialidad; agrupan el padrón |
+| `encargados` | Encargados del padrón, deduplicados por nombre, con su teléfono |
+| `profesores` | Catálogo de profesores con los campos del instituto, listos para elegirlos en un paseo |
 | `paseos` | Catálogo de destinos: nombre, destino, costo por persona, profesor a cargo |
 | `personal_salvamento` | Personal de comandos de salvamento reutilizable entre paseos |
 | `paseo_personal` | Relación entre un paseo y su personal de salvamento |
 | `viajes` | Viajes programados: fecha, horarios, capacidad del bus y estado |
-| `pasajeros` | Estudiantes inscritos, con código, encargado y compañero de viaje |
+| `pasajeros` | Pasajeros inscritos en un viaje, enlazados a su alumno del padrón por código |
 | `pagos` | Pagos registrados por viaje y por estudiante |
 | `asientos` | Asignación de asientos: estudiante o acompañante y número de butaca |
 | `parametros` | Parámetros globales del sistema y versión del esquema |
@@ -139,7 +144,13 @@ El sistema se actualiza solo: en cada arranque compara `esquema_version` (tabla
 
 - creación de la tabla `asientos` y de la columna `amigo_codigo`;
 - conversión de los códigos antiguos al formato `[Año][Sección][Número de lista]`;
-- asignación de preferencias de compañero en los datos de demostración.
+- asignación de preferencias de compañero en los datos de demostración;
+- creación del padrón (`alumnos`, `encargados` y `profesores`) y de las columnas
+  `pasajeros.alumno_id` y `paseos.profesor_id` con sus claves foráneas;
+- creación de la tabla `secciones` y de `alumnos.seccion_id`, que sustituye al texto de
+  sección: el valor de cada alumno se lleva a su sección antes de quitar la columna, y
+  `paseos.profesor_encargado` se vuelve opcional porque ahora el profesor se elige de la
+  lista.
 
 Si prefieres aplicarlas a mano:
 
@@ -148,6 +159,34 @@ php bin/rideroster migrar
 ```
 
 Ninguna migración borra información registrada.
+
+### Cargar el padrón del instituto
+
+```bash
+php bin/rideroster migrar-instituto
+```
+
+El comando toma el volcado phpMyAdmin de `database/instituto_nacional_de_apopa_23_10.sql`
+(lo indica con `--archivo=<ruta>`), lo carga en una base temporal de solo lectura y traslada
+los 52 profesores, las secciones y el padrón de alumnos:
+
+- los profesores se copian con todos sus campos, sin filtros ni modificaciones;
+- las secciones del catálogo del volcado se crean con su nombre, su año y su especialidad
+  (35 en total); el año se deriva de la primera cifra del nombre si no viene indicado y
+  las secciones que aparezcan solo en los alumnos se crean también, así el padrón completo
+  queda en 40;
+- los alumnos se registran con código, nombre, teléfono y su sección, que se crea al vuelo
+  si todavía no existe;
+- el encargado que ya existe se reutiliza y se completa con el registro previo, marcando al
+  alumno como **viaja con encargado**; el que no existe se crea y se vincula;
+- el encargado declarado sin nombre completo y sin registro previo **impide agregar al
+  alumno**: queda en el informe con su código y el motivo, y el resto continúa;
+- todos los alumnos migrados quedan al **100% pagado**; no hay planes de cuotas ni la
+  opción "por pagos".
+
+Opciones: `--simular` ejecuta todo y revierte la transacción al final, dejando solo el
+informe; `--limpiar` vacía el padrón antes de volver a migrar. El comando termina con el
+código `2` si hubo registros bloqueados.
 
 ---
 

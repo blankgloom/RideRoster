@@ -83,8 +83,22 @@ Después de marcar el viaje como finalizado, el botón **Generar listado** abre 
 * Por estudiante se muestra **nombre, código, asiento asignado, encargado, costo, pagado, pendiente** y su estado de pago (*Pagado*, *Parcial* o *Pendiente*).
 * **Totales** por bus y de la salida completa (recaudado y pendiente), más un botón **Exportar PDF** por bus que reutiliza `listado.php`.
 
+### Alumnos
+* **Padrón del instituto** con los alumnos migrados: nombre, código, teléfono, encargado, estado de pago y situación.
+* **Agrupación por sección**: cada grupo (1A, 1AG, 2B…) encabeza su bloque con el número de alumnos inscritos, y el orden del listado sigue el del nombre de la sección.
+* **Filtros**: búsqueda por nombre, código o encargado, más selectores de año y de sección; se cargan una sola vez al abrir la pestaña y responden al instante.
+* **Alta, edición y borrado** de alumnos con validación de código repetido. Un alumno que ya participó en un viaje no se puede borrar: se le pide marcarlo como inactivo para conservar su historial.
+* **Encargado**: si el nombre ya existe en la base de datos se reutiliza y se autocompleta; si no, se crea y se vincula. Un encargado declarado con un solo nombre y sin registro previo no se guarda.
+* **Secciones**: tarjeta con cada sección, su año, su especialidad y sus alumnos, con alta, edición y borrado. No se puede eliminar una sección que todavía tiene alumnos.
+* Todos los alumnos del padrón están **pagados al 100 %**; el sistema no tiene planes de cuotas ni estado "por pagos".
+
+### Profesores
+* **Catálogo docente** del instituto con los diez campos originales: código, nombres, apellidos, sexo, fecha de nacimiento, cargo o especialidad, permiso de salida, alergias, fecha de registro y situación.
+* **Búsqueda, alta, edición y borrado** desde la pestaña; un profesor con paseos asignados no se puede eliminar, se marca inactivo.
+* **De aquí se elige el profesor de cada paseo**: el formulario de Administración ofrece un menú con los profesores activos en lugar de texto libre.
+
 ### Administración
-* Catálogo de **paseos**: nombre, destino, costo por persona, profesor a cargo y personal de comandos de salvamento.
+* Catálogo de **paseos**: nombre, destino, costo por persona, profesor a cargo elegido del catálogo de profesores y personal de comandos de salvamento.
 * **Personal de salvamento** reutilizable entre paseos, con alta y baja desde la misma vista.
 * **Programación de viajes** a partir de un paseo, indicando día, horarios y capacidad del bus. Los viajes programados aparecen de inmediato en la pestaña Inicio.
 * **Parámetros globales**: capacidad predeterminada del autobús, asientos reservados al personal y orden de las listas de pasajeros.
@@ -124,11 +138,18 @@ Después de marcar el viaje como finalizado, el botón **Generar listado** abre 
 ## Herramienta de línea de comandos
 
 ```bash
-php bin/rideroster ayuda      # Lista de comandos
-php bin/rideroster instalar   # Crea la base, aplica el esquema y carga la demostración
-php bin/rideroster migrar     # Actualiza el esquema sin borrar información
-php bin/rideroster estado     # Conexión y resumen de la base de datos
+php bin/rideroster ayuda             # Lista de comandos
+php bin/rideroster instalar          # Crea la base, aplica el esquema y carga la demostración
+php bin/rideroster migrar            # Actualiza el esquema sin borrar información
+php bin/rideroster migrar-instituto  # Migra el padrón de alumnos, secciones y profesores del instituto
+php bin/rideroster estado            # Conexión y resumen de la base de datos
 ```
+
+`migrar-instituto` lee el volcado phpMyAdmin de `database/` y carga el padrón completo en
+las tablas `alumnos`, `secciones`, `encargados` y `profesores`. Acepta `--archivo=<ruta>` para indicar
+otro volcado, `--simular` para ver el informe sin guardar nada y `--limpiar` para volver a
+empezar. Los alumnos cuyo encargado está declarado sin datos completos y sin registro
+previo no se agregan: aparecen en el informe con su código y el motivo.
 
 ---
 
@@ -165,11 +186,11 @@ php bin/rideroster estado     # Conexión y resumen de la base de datos
 
 ```
 RideRoster/
-├── index.php            # Interfaz del sistema (pestañas Inicio y Administración)
+├── index.php            # Interfaz del sistema (pestañas Inicio, Alumnos, Profesores, Administración y Estadísticas)
 ├── listado.php          # Listado de abordaje imprimible (PDF)
-├── bin/rideroster       # Herramienta de terminal: instalar, migrar, estado
-├── api/index.php        # API JSON (paseos, viajes, pasajeros, pagos, personal, asientos, salidas)
-├── app/                 # Configuración, conexión, consultas y lógica de negocio
+├── bin/rideroster       # Herramienta de terminal: instalar, migrar, migrar-instituto, estado
+├── api/index.php        # API JSON (paseos, viajes, pasajeros, pagos, personal, asientos, salidas, alumnos, secciones, profesores)
+├── app/                 # Configuración, conexión, padrón, consultas, migraciones y lógica de negocio
 ├── assets/css/app.css   # Hoja de estilos del sistema
 ├── assets/css/listado.css # Estilos del documento imprimible
 ├── assets/js/app.js     # Lógica de la interfaz
@@ -182,7 +203,7 @@ RideRoster/
 
 La versión **0.5.1** marca el salto del prototipo a un sistema en operación:
 
-* Los tres módulos, **Inicio**, **Administración** y **Estadísticas**, funcionan de punta a punta sobre MySQL con persistencia real.
+* Los cinco módulos, **Inicio**, **Alumnos**, **Profesores**, **Administración** y **Estadísticas**, funcionan de punta a punta sobre MySQL con persistencia real.
 * El control de pasajeros, horarios, capacidad, cobros y acompañantes quedan centralizados y auditables en un solo lugar.
 * La **asignación de asientos** interactiva y el **listado de abordaje** imprimible cubren la logística de embarque y el pase de lista en el evento.
 * El sistema se **auto-instala y se auto-migra**: no requiere pasos manuales para preparar o actualizar la base de datos.

@@ -12,6 +12,7 @@ require_once __DIR__ . '/viajes.php';
 require_once __DIR__ . '/asientos.php';
 require_once __DIR__ . '/flotas.php';
 require_once __DIR__ . '/estadisticas.php';
+require_once __DIR__ . '/padron.php';
 require_once __DIR__ . '/migracion.php';
 
 asegurar_base_de_datos();

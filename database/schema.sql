@@ -6,16 +6,72 @@ CREATE TABLE IF NOT EXISTS parametros (
     descripcion VARCHAR(255) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS profesores (
+    id                 INT AUTO_INCREMENT PRIMARY KEY,
+    codigo             VARCHAR(20) NOT NULL,
+    nombres            VARCHAR(100) NOT NULL,
+    apellidos          VARCHAR(100) NOT NULL,
+    sexo               ENUM('M','F') NOT NULL,
+    fecha_nacimiento   DATE NULL,
+    especialidad_cargo VARCHAR(100) NOT NULL,
+    permiso            ENUM('Concedido','Denegado') NOT NULL DEFAULT 'Concedido',
+    alergias           TEXT NULL,
+    fecha_registro     TIMESTAMP NULL DEFAULT NULL,
+    activo             TINYINT(1) NOT NULL DEFAULT 1,
+    creado_en          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_profesores_codigo (codigo),
+    INDEX idx_profesores_nombre (apellidos, nombres)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS encargados (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    nombre     VARCHAR(140) NOT NULL,
+    telefono   VARCHAR(30) NULL,
+    creado_en  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_encargados_nombre (nombre)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS secciones (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    nombre       VARCHAR(10) NOT NULL,
+    anio         TINYINT NOT NULL DEFAULT 1,
+    especialidad VARCHAR(60) NULL,
+    activo       TINYINT(1) NOT NULL DEFAULT 1,
+    creado_en    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_secciones_nombre (nombre),
+    INDEX idx_secciones_anio (anio)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS alumnos (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    codigo       VARCHAR(20) NOT NULL,
+    nombre       VARCHAR(140) NOT NULL,
+    seccion_id   INT NULL,
+    telefono     VARCHAR(30) NULL,
+    encargado_id INT NULL,
+    estado_pago  ENUM('pagado','pendiente') NOT NULL DEFAULT 'pagado',
+    activo       TINYINT(1) NOT NULL DEFAULT 1,
+    creado_en    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_alumnos_codigo (codigo),
+    INDEX idx_alumnos_seccion (seccion_id),
+    INDEX idx_alumnos_encargado (encargado_id),
+    CONSTRAINT fk_alumnos_encargado FOREIGN KEY (encargado_id) REFERENCES encargados (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_alumnos_seccion FOREIGN KEY (seccion_id) REFERENCES secciones (id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS paseos (
     id                 INT AUTO_INCREMENT PRIMARY KEY,
     nombre             VARCHAR(140) NOT NULL,
     destino            VARCHAR(180) NOT NULL,
     costo_persona      DECIMAL(10,2) NOT NULL DEFAULT 0,
-    profesor_encargado VARCHAR(140) NOT NULL,
+    profesor_encargado VARCHAR(140) NULL,
+    profesor_id        INT NULL,
     descripcion        TEXT NULL,
     activo             TINYINT(1) NOT NULL DEFAULT 1,
     creado_en          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_paseos_activo (activo)
+    INDEX idx_paseos_activo (activo),
+    INDEX idx_paseos_profesor (profesor_id),
+    CONSTRAINT fk_paseos_profesor FOREIGN KEY (profesor_id) REFERENCES profesores (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS personal_salvamento (
@@ -55,10 +111,12 @@ CREATE TABLE IF NOT EXISTS pasajeros (
     viaje_id     INT NOT NULL,
     nombre       VARCHAR(140) NOT NULL,
     codigo       VARCHAR(40) NOT NULL,
+    alumno_id    INT NULL,
     encargado    VARCHAR(140) NULL,
     amigo_codigo VARCHAR(40) NULL,
     creado_en    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_pasajeros_viaje FOREIGN KEY (viaje_id) REFERENCES viajes (id) ON DELETE CASCADE,
+    CONSTRAINT fk_pasajeros_alumno FOREIGN KEY (alumno_id) REFERENCES alumnos (id) ON DELETE SET NULL,
     INDEX idx_pasajeros_viaje (viaje_id),
     INDEX idx_pasajeros_codigo (viaje_id, codigo)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

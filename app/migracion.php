@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 const PREFIJOS_CODIGO = ['2B', '3A', '3C', '2D', '1A', '3B', '4A', '2C'];
-const ESQUEMA_VERSION = 3;
+const ESQUEMA_VERSION = 5;
 
-const TABLAS_PRINCIPALES = ['paseos', 'viajes', 'pasajeros', 'pagos', 'parametros'];
+const TABLAS_PRINCIPALES = ['paseos', 'viajes', 'pasajeros', 'pagos', 'parametros', 'alumnos', 'profesores', 'encargados', 'secciones'];
 
 function tablas_principales_existen(): bool
 {
@@ -72,6 +72,142 @@ function columna_existe(string $tabla, string $columna): bool
 function esquema_al_actualizado(): bool
 {
     return tabla_existe('asientos') && columna_existe('pasajeros', 'amigo_codigo');
+}
+
+/**
+ * Restricción de integridad referencial ya registrada en la base de datos.
+ */
+function restriccion_existe(string $restriccion): bool
+{
+    $sentencia = db()->prepare('SELECT COUNT(*) FROM information_schema.table_constraints
+                                WHERE constraint_schema = DATABASE() AND constraint_name = :restriccion');
+    $sentencia->execute([':restriccion' => $restriccion]);
+
+    return (int) $sentencia->fetchColumn() > 0;
+}
+
+function agregar_restriccion_si_falta(string $restriccion, string $sentencia): void
+{
+    if (restriccion_existe($restriccion)) {
+        return;
+    }
+
+    db()->exec($sentencia);
+}
+
+/**
+ * ¿La columna es de relleno obligatorio?
+ */
+function columna_obligatoria(string $tabla, string $columna): bool
+{
+    $sentencia = db()->prepare('SELECT IS_NULLABLE FROM information_schema.columns
+                                WHERE table_schema = DATABASE()
+                                  AND table_name = :tabla AND column_name = :columna');
+    $sentencia->execute([':tabla' => $tabla, ':columna' => $columna]);
+    $resultado = $sentencia->fetchColumn();
+
+    return $resultado !== false && $resultado === 'NO';
+}
+
+/**
+ * El padrón de alumnos, sus secciones y el catálogo de profesores ya están
+ * disponibles.
+ */
+function esquema_padron_disponible(): bool
+{
+    return tabla_existe('alumnos')
+        && tabla_existe('encargados')
+        && tabla_existe('profesores')
+        && tabla_existe('secciones')
+        && columna_existe('pasajeros', 'alumno_id')
+        && columna_existe('paseos', 'profesor_id')
+        && columna_existe('alumnos', 'seccion_id')
+        && !columna_existe('alumnos', 'seccion')
+        && !columna_obligatoria('paseos', 'profesor_encargado');
+}
+
+/**
+ * Convierte el texto de sección que traían los alumnos en el catálogo de
+ * secciones y enlaza cada alumno con la suya.
+ *
+ * Solo se ejecuta una vez: al terminar, la columna de texto desaparece.
+ */
+function migrar_secciones_de_alumnos(): void
+{
+    if (!columna_existe('alumnos', 'seccion')) {
+        return;
+    }
+
+    // 1) Crea las secciones que todavía solo existen como texto, con el año que
+    //    indica la primera cifra del nombre (1A → primer año, 2J25 → segundo).
+    db()->exec('INSERT IGNORE INTO secciones (nombre, anio, activo)
+                SELECT DISTINCT TRIM(a.seccion),
+                       GREATEST(CAST(SUBSTRING(TRIM(a.seccion), 1, 1) AS UNSIGNED), 1), 1
+                FROM alumnos a
+                WHERE a.seccion IS NOT NULL AND TRIM(a.seccion) <> \'\'');
+
+    // 2) Enlaza cada alumno con su sección.
+    db()->exec('UPDATE alumnos a
+                INNER JOIN secciones s ON s.nombre = a.seccion
+                SET a.seccion_id = s.id
+                WHERE a.seccion_id IS NULL');
+
+    // 3) A partir de aquí la sección vive solo en la tabla de secciones.
+    db()->exec('ALTER TABLE alumnos DROP COLUMN seccion');
+}
+
+/**
+ * El profesor de un paseo pasa a elegirse de la lista de profesores, así que
+ * el texto se vuelve opcional.
+ */
+function permitir_profesor_sin_asignar(): void
+{
+    if (!columna_obligatoria('paseos', 'profesor_encargado')) {
+        return;
+    }
+
+    db()->exec('ALTER TABLE paseos MODIFY COLUMN profesor_encargado VARCHAR(140) NULL');
+}
+
+/**
+ * Crea el padrón (alumnos, secciones y encargados), el catálogo de profesores y
+ * los enlaces que permiten agregar un alumno a un viaje por su código y elegir
+ * el profesor de un paseo como opción y no como texto libre.
+ */
+function aplicar_esquema_padron(): void
+{
+    if (!tabla_existe('alumnos') || !tabla_existe('encargados')
+        || !tabla_existe('profesores') || !tabla_existe('secciones')) {
+        aplicar_esquema_sql();
+    }
+
+    agregar_columna_si_falta('pasajeros', 'alumno_id', 'alumno_id INT NULL');
+    agregar_columna_si_falta('paseos', 'profesor_id', 'profesor_id INT NULL');
+    agregar_columna_si_falta('alumnos', 'seccion_id', 'seccion_id INT NULL');
+
+    migrar_secciones_de_alumnos();
+    permitir_profesor_sin_asignar();
+
+    agregar_restriccion_si_falta(
+        'fk_alumnos_encargado',
+        'ALTER TABLE alumnos ADD CONSTRAINT fk_alumnos_encargado
+         FOREIGN KEY (encargado_id) REFERENCES encargados (id) ON DELETE RESTRICT'
+    );
+    agregar_restriccion_si_falta(
+        'fk_alumnos_seccion',
+        'ALTER TABLE alumnos ADD CONSTRAINT fk_alumnos_seccion
+         FOREIGN KEY (seccion_id) REFERENCES secciones (id) ON DELETE RESTRICT'
+    );
+    agregar_restriccion_si_falta(
+        'fk_pasajeros_alumno',
+        'ALTER TABLE pasajeros ADD CONSTRAINT fk_pasajeros_alumno
+         FOREIGN KEY (alumno_id) REFERENCES alumnos (id) ON DELETE SET NULL'
+    );
+    agregar_restriccion_si_falta(
+        'fk_paseos_profesor',
+        'ALTER TABLE paseos ADD CONSTRAINT fk_paseos_profesor
+         FOREIGN KEY (profesor_id) REFERENCES profesores (id) ON DELETE SET NULL'
+    );
 }
 
 function crear_tabla_asientos(): void
@@ -186,7 +322,8 @@ function aplicar_migraciones(bool $forzar = false): void
 
         if (parametro_int('esquema_version', 0) >= ESQUEMA_VERSION
             && tabla_existe('asientos')
-            && columna_existe('pasajeros', 'amigo_codigo')) {
+            && columna_existe('pasajeros', 'amigo_codigo')
+            && esquema_padron_disponible()) {
             $aplicadas = true;
             return;
         }
@@ -196,6 +333,8 @@ function aplicar_migraciones(bool $forzar = false): void
         }
 
         agregar_columna_si_falta('pasajeros', 'amigo_codigo', 'amigo_codigo VARCHAR(40) NULL AFTER encargado');
+
+        aplicar_esquema_padron();
 
         normalizar_codigos_existentes();
         asignar_preferencias_demo();

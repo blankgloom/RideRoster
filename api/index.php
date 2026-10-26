@@ -177,13 +177,14 @@ function asignar_equipo(int $paseoId, array $nombres, array $ids): void
 
 function listar_paseos(): array
 {
-    $paseos = db()->query('SELECT id, nombre, destino, costo_persona, profesor_encargado, descripcion, activo
+    $paseos = db()->query('SELECT id, nombre, destino, costo_persona, profesor_encargado, profesor_id, descripcion, activo
                            FROM paseos ORDER BY activo DESC, nombre ASC')->fetchAll();
 
     foreach ($paseos as &$paseo) {
         $paseo['id'] = (int) $paseo['id'];
         $paseo['costo_persona'] = (float) $paseo['costo_persona'];
         $paseo['activo'] = (int) $paseo['activo'];
+        $paseo['profesor_id'] = $paseo['profesor_id'] !== null ? (int) $paseo['profesor_id'] : null;
         $paseo['equipo_salvamento'] = equipo_salvamento_de_paseo($paseo['id']);
     }
 
@@ -199,6 +200,177 @@ function listar_personal(): array
     }
 
     return $personal;
+}
+
+/**
+ * Lee y valida los datos de un alumno del padrón.
+ *
+ * @return array{codigo: string, nombre: string, seccion_id: ?int, telefono: ?string,
+ *                encargado_id: ?int, estado_pago: string, activo: int}
+ */
+function datos_de_alumno(array $datos, int $ignorar = 0): array
+{
+    $codigo = texto($datos, 'codigo');
+    $nombre = texto($datos, 'nombre');
+
+    if ($codigo === '' || $nombre === '') {
+        responder_error('datos_incompletos', 'El código y el nombre del alumno son obligatorios.');
+    }
+
+    $seccionId = (int) ($datos['seccion_id'] ?? 0);
+
+    if ($seccionId > 0) {
+        $existe = db()->prepare('SELECT id FROM secciones WHERE id = :id');
+        $existe->execute([':id' => $seccionId]);
+
+        if ($existe->fetch() === false) {
+            responder_error('seccion_inexistente', 'La sección seleccionada ya no existe.', 409);
+        }
+    } else {
+        $seccionId = null;
+    }
+
+    $repetido = db()->prepare('SELECT id FROM alumnos WHERE codigo = :codigo');
+    $repetido->execute([':codigo' => $codigo]);
+    $existente = $repetido->fetch();
+
+    if ($existente !== false && (int) $existente['id'] !== $ignorar) {
+        responder_error(
+            'codigo_repetido',
+            'Ya hay un alumno registrado con el código ' . $codigo . '.',
+            409,
+            ['codigo' => $codigo, 'alumno_id' => (int) $existente['id']]
+        );
+    }
+
+    $estadoPago = texto($datos, 'estado_pago', 'pagado');
+
+    if (!in_array($estadoPago, ['pagado', 'pendiente'], true)) {
+        $estadoPago = 'pagado';
+    }
+
+    // Se resuelve al final: si algo más falla no queda un encargado huérfano.
+    $encargado = resolver_encargado(texto($datos, 'encargado'), texto($datos, 'telefono_encargado'));
+
+    if ($encargado['estado'] === 'incompleto') {
+        responder_error(
+            'encargado_incompleto',
+            'Viaja con encargado pero "' . $encargado['nombre'] . '" no tiene apellido y no existe un registro '
+            . 'previo en la base de datos. Escribe el nombre completo o deja el campo vacío.',
+            409,
+            ['encargado' => $encargado['nombre']]
+        );
+    }
+
+    $telefono = texto($datos, 'telefono');
+
+    return [
+        'codigo'      => $codigo,
+        'nombre'      => $nombre,
+        'seccion_id'  => $seccionId,
+        'telefono'    => $telefono !== '' ? $telefono : null,
+        'encargado_id' => $encargado['id'],
+        'estado_pago' => $estadoPago,
+        'activo'      => filter_var($datos['activo'] ?? true, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
+    ];
+}
+
+/**
+ * Lee y valida los datos de un profesor del catálogo.
+ *
+ * @return array{codigo: string, nombres: string, apellidos: string, sexo: string,
+ *                fecha_nacimiento: ?string, especialidad_cargo: string, permiso: string,
+ *                alergias: ?string, activo: int, fecha_registro: ?string}
+ */
+function datos_de_profesor(array $datos, int $ignorar = 0): array
+{
+    $codigo   = texto($datos, 'codigo');
+    $nombres  = texto($datos, 'nombres');
+    $apellidos = texto($datos, 'apellidos');
+    $cargo    = texto($datos, 'especialidad_cargo');
+
+    if ($codigo === '' || $nombres === '' || $apellidos === '' || $cargo === '') {
+        responder_error('datos_incompletos', 'El código, los nombres, los apellidos y el cargo del profesor son obligatorios.');
+    }
+
+    $repetido = db()->prepare('SELECT id FROM profesores WHERE codigo = :codigo');
+    $repetido->execute([':codigo' => $codigo]);
+    $existente = $repetido->fetch();
+
+    if ($existente !== false && (int) $existente['id'] !== $ignorar) {
+        responder_error(
+            'codigo_repetido',
+            'Ya hay un profesor registrado con el código ' . $codigo . '.',
+            409,
+            ['codigo' => $codigo, 'profesor_id' => (int) $existente['id']]
+        );
+    }
+
+    $sexo = texto($datos, 'sexo');
+
+    if (!in_array($sexo, ['M', 'F'], true)) {
+        responder_error('datos_incompletos', 'Indica si el profesor es hombre (M) o mujer (F).');
+    }
+
+    $permiso = texto($datos, 'permiso', 'Concedido');
+
+    if (!in_array($permiso, ['Concedido', 'Denegado'], true)) {
+        $permiso = 'Concedido';
+    }
+
+    $fechaNacimiento = texto($datos, 'fecha_nacimiento');
+    $fechaRegistro   = texto($datos, 'fecha_registro');
+
+    // La fecha cero del origen no es una fecha: se guarda vacía.
+    if ($fechaNacimiento === '0000-00-00') {
+        $fechaNacimiento = '';
+    }
+
+    if ($fechaNacimiento !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaNacimiento) !== 1) {
+        responder_error('fecha_invalida', 'La fecha de nacimiento debe tener el formato AAAA-MM-DD.');
+    }
+
+    if ($fechaRegistro !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaRegistro) !== 1) {
+        responder_error('fecha_invalida', 'La fecha de registro debe tener el formato AAAA-MM-DD.');
+    }
+
+    return [
+        'codigo'             => $codigo,
+        'nombres'            => $nombres,
+        'apellidos'          => $apellidos,
+        'sexo'               => $sexo,
+        'fecha_nacimiento'   => $fechaNacimiento !== '' ? $fechaNacimiento : null,
+        'especialidad_cargo' => $cargo,
+        'permiso'            => $permiso,
+        'alergias'           => texto($datos, 'alergias') !== '' ? texto($datos, 'alergias') : null,
+        'activo'             => filter_var($datos['activo'] ?? true, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
+        'fecha_registro'     => $fechaRegistro !== '' ? $fechaRegistro : null,
+    ];
+}
+
+/**
+ * Profesor de un paseo: si llega el id se toma el registro del catálogo y su
+ * nombre completo; si no, se respeta el texto escrito a mano.
+ *
+ * @return array{id: int|null, nombre: string}
+ */
+function profesor_del_paseo(array $datos): array
+{
+    $profesorId = (int) ($datos['profesor_id'] ?? 0);
+
+    if ($profesorId <= 0) {
+        return ['id' => null, 'nombre' => texto($datos, 'profesor_encargado')];
+    }
+
+    $sentencia = db()->prepare("SELECT CONCAT_WS(' ', nombres, apellidos) AS nombre FROM profesores WHERE id = :id");
+    $sentencia->execute([':id' => $profesorId]);
+    $nombre = $sentencia->fetchColumn();
+
+    if ($nombre === false) {
+        responder_error('profesor_inexistente', 'El profesor seleccionado ya no existe en el catálogo.', 409);
+    }
+
+    return ['id' => $profesorId, 'nombre' => (string) $nombre];
 }
 
 try {
@@ -1001,20 +1173,21 @@ try {
             if ($metodo === 'POST' && $accion === '') {
                 $nombre   = texto($datos, 'nombre');
                 $destino  = texto($datos, 'destino');
-                $profesor = texto($datos, 'profesor_encargado');
+                $profesor = profesor_del_paseo($datos);
                 $costo    = numero($datos, 'costo_persona');
 
-                if ($nombre === '' || $destino === '' || $profesor === '') {
+                if ($nombre === '' || $destino === '' || $profesor['nombre'] === '') {
                     responder_error('datos_incompletos', 'El nombre, el destino y el profesor a cargo son obligatorios.');
                 }
 
-                $sentencia = db()->prepare('INSERT INTO paseos (nombre, destino, costo_persona, profesor_encargado, descripcion)
-                                            VALUES (:nombre, :destino, :costo, :profesor, :descripcion)');
+                $sentencia = db()->prepare('INSERT INTO paseos (nombre, destino, costo_persona, profesor_encargado, profesor_id, descripcion)
+                                            VALUES (:nombre, :destino, :costo, :profesor, :profesor_id, :descripcion)');
                 $sentencia->execute([
                     ':nombre'      => $nombre,
                     ':destino'     => $destino,
                     ':costo'       => $costo,
-                    ':profesor'    => $profesor,
+                    ':profesor'    => $profesor['nombre'],
+                    ':profesor_id' => $profesor['id'],
                     ':descripcion' => texto($datos, 'descripcion') !== '' ? texto($datos, 'descripcion') : null,
                 ]);
 
@@ -1032,15 +1205,23 @@ try {
                     responder_error('no_encontrado', 'El paseo no existe.', 404);
                 }
 
+                $profesor = profesor_del_paseo($datos);
+
+                if ($profesor['nombre'] === '') {
+                    responder_error('datos_incompletos', 'El nombre, el destino y el profesor a cargo son obligatorios.');
+                }
+
                 $sentencia = db()->prepare('UPDATE paseos
                                             SET nombre = :nombre, destino = :destino, costo_persona = :costo,
-                                                profesor_encargado = :profesor, descripcion = :descripcion
+                                                profesor_encargado = :profesor, profesor_id = :profesor_id,
+                                                descripcion = :descripcion
                                             WHERE id = :id');
                 $sentencia->execute([
                     ':nombre'      => texto($datos, 'nombre'),
                     ':destino'     => texto($datos, 'destino'),
                     ':costo'       => numero($datos, 'costo_persona'),
-                    ':profesor'    => texto($datos, 'profesor_encargado'),
+                    ':profesor'    => $profesor['nombre'],
+                    ':profesor_id' => $profesor['id'],
                     ':descripcion' => texto($datos, 'descripcion') !== '' ? texto($datos, 'descripcion') : null,
                     ':id'          => $id,
                 ]);
@@ -1137,6 +1318,261 @@ try {
             }
 
             responder_error('ruta_desconocida', 'Acción no disponible para personal.');
+            break;
+
+        case 'profesores':
+            if ($metodo === 'GET') {
+                responder_ok(listar_profesores(texto($_GET, 'q')));
+            }
+
+            if ($metodo === 'POST' && $accion === '') {
+                $profesor = datos_de_profesor($datos);
+
+                $sentencia = db()->prepare(
+                    'INSERT INTO profesores (codigo, nombres, apellidos, sexo, fecha_nacimiento,
+                                             especialidad_cargo, permiso, alergias, activo, fecha_registro)
+                     VALUES (:codigo, :nombres, :apellidos, :sexo, :fecha_nacimiento,
+                             :especialidad_cargo, :permiso, :alergias, :activo,
+                             COALESCE(:fecha_registro, CURRENT_TIMESTAMP))'
+                );
+                $sentencia->execute($profesor);
+
+                responder_ok(listar_profesores(), ['mensaje' => 'Profesor registrado.']);
+            }
+
+            if ($metodo === 'POST' && $accion === 'actualizar') {
+                $existe = db()->prepare('SELECT id, fecha_registro FROM profesores WHERE id = :id');
+                $existe->execute([':id' => $id]);
+                $registro = $existe->fetch();
+
+                if ($registro === false) {
+                    responder_error('no_encontrado', 'El profesor no existe.', 404);
+                }
+
+                $profesor = datos_de_profesor($datos, $id);
+
+                if ($profesor['fecha_registro'] === null) {
+                    $profesor['fecha_registro'] = $registro['fecha_registro'];
+                }
+
+                $sentencia = db()->prepare(
+                    'UPDATE profesores
+                     SET codigo = :codigo, nombres = :nombres, apellidos = :apellidos, sexo = :sexo,
+                         fecha_nacimiento = :fecha_nacimiento, especialidad_cargo = :especialidad_cargo,
+                         permiso = :permiso, alergias = :alergias, activo = :activo,
+                         fecha_registro = :fecha_registro
+                     WHERE id = :id'
+                );
+                $profesor['id'] = $id;
+                $sentencia->execute($profesor);
+
+                responder_ok(listar_profesores(), ['mensaje' => 'Profesor actualizado.']);
+            }
+
+            if ($metodo === 'POST' && $accion === 'eliminar') {
+                $enUso = db()->prepare('SELECT COUNT(*) FROM paseos WHERE profesor_id = :id');
+                $enUso->execute([':id' => $id]);
+                $cantidad = (int) $enUso->fetchColumn();
+
+                if ($cantidad > 0) {
+                    responder_error(
+                        'profesor_en_uso',
+                        'El profesor tiene ' . $cantidad . ($cantidad === 1 ? ' paseo asignado' : ' paseos asignados')
+                        . '. Márcalo como inactivo en lugar de eliminarlo.',
+                        409,
+                        ['paseos' => $cantidad]
+                    );
+                }
+
+                db()->prepare('DELETE FROM profesores WHERE id = :id')->execute([':id' => $id]);
+
+                responder_ok(listar_profesores(), ['mensaje' => 'Profesor eliminado.']);
+            }
+
+            responder_error('ruta_desconocida', 'Acción no disponible para profesores.');
+            break;
+
+        case 'secciones':
+            // El listado solo, que es barato; las modificaciones devuelven el
+            // padrón completo, que es lo que necesita la vista para repintarse.
+            if ($metodo === 'GET') {
+                responder_ok(listar_secciones());
+            }
+
+            if ($metodo === 'POST' && $accion === '') {
+                $nombre = texto($datos, 'nombre');
+
+                if ($nombre === '') {
+                    responder_error('datos_incompletos', 'El nombre de la sección es obligatorio.');
+                }
+
+                if (seccion_por_nombre($nombre) !== null) {
+                    responder_error('seccion_repetida', 'Ya existe la sección ' . $nombre . '.', 409, ['nombre' => $nombre]);
+                }
+
+                $anio = (int) ($datos['anio'] ?? 0);
+
+                if ($anio < 1 || $anio > 9) {
+                    $anio = anio_de_seccion($nombre);
+                }
+
+                $sentencia = db()->prepare('INSERT INTO secciones (nombre, anio, especialidad)
+                                            VALUES (:nombre, :anio, :especialidad)');
+                $sentencia->execute([
+                    ':nombre'       => $nombre,
+                    ':anio'         => $anio,
+                    ':especialidad' => texto($datos, 'especialidad') !== '' ? texto($datos, 'especialidad') : null,
+                ]);
+
+                $creada = seccion_por_nombre($nombre);
+
+                responder_ok(datos_padron(), ['mensaje' => 'Sección creada.', 'seccion_id' => $creada['id'] ?? null]);
+            }
+
+            if ($metodo === 'POST' && $accion === 'actualizar') {
+                $existe = db()->prepare('SELECT id, anio FROM secciones WHERE id = :id');
+                $existe->execute([':id' => $id]);
+                $seccion = $existe->fetch();
+
+                if ($seccion === false) {
+                    responder_error('no_encontrado', 'La sección no existe.', 404);
+                }
+
+                $nombre = texto($datos, 'nombre');
+
+                if ($nombre === '') {
+                    responder_error('datos_incompletos', 'El nombre de la sección es obligatorio.');
+                }
+
+                $repetida = seccion_por_nombre($nombre);
+
+                if ($repetida !== null && $repetida['id'] !== $id) {
+                    responder_error('seccion_repetida', 'Ya existe la sección ' . $nombre . '.', 409, ['nombre' => $nombre]);
+                }
+
+                $anio = (int) ($datos['anio'] ?? 0);
+
+                if ($anio < 1 || $anio > 9) {
+                    $anio = anio_de_seccion($nombre);
+                }
+
+                db()->prepare('UPDATE secciones
+                               SET nombre = :nombre, anio = :anio, especialidad = :especialidad
+                               WHERE id = :id')->execute([
+                    ':nombre'       => $nombre,
+                    ':anio'         => $anio,
+                    ':especialidad' => texto($datos, 'especialidad') !== '' ? texto($datos, 'especialidad') : null,
+                    ':id'           => $id,
+                ]);
+
+                responder_ok(datos_padron(), ['mensaje' => 'Sección actualizada.']);
+            }
+
+            if ($metodo === 'POST' && $accion === 'eliminar') {
+                $existe = db()->prepare('SELECT id FROM secciones WHERE id = :id');
+                $existe->execute([':id' => $id]);
+
+                if ($existe->fetch() === false) {
+                    responder_error('no_encontrado', 'La sección no existe.', 404);
+                }
+
+                $enUso = db()->prepare('SELECT COUNT(*) FROM alumnos WHERE seccion_id = :id');
+                $enUso->execute([':id' => $id]);
+                $cantidad = (int) $enUso->fetchColumn();
+
+                if ($cantidad > 0) {
+                    responder_error(
+                        'seccion_en_uso',
+                        'La sección tiene ' . $cantidad . ($cantidad === 1 ? ' alumno inscrito' : ' alumnos inscritos')
+                        . '. Mueve a los alumnos antes de eliminarla.',
+                        409,
+                        ['alumnos' => $cantidad]
+                    );
+                }
+
+                db()->prepare('DELETE FROM secciones WHERE id = :id')->execute([':id' => $id]);
+
+                responder_ok(datos_padron(), ['mensaje' => 'Sección eliminada.']);
+            }
+
+            responder_error('ruta_desconocida', 'Acción no disponible para secciones.');
+            break;
+
+        case 'alumnos':
+            if ($metodo === 'GET') {
+                responder_ok(datos_padron([
+                    'q'          => texto($_GET, 'q'),
+                    'seccion_id' => texto($_GET, 'seccion_id'),
+                    'anio'       => texto($_GET, 'anio'),
+                    'limite'     => texto($_GET, 'limite'),
+                ]));
+            }
+
+            if ($metodo === 'POST' && $accion === '') {
+                $alumno = datos_de_alumno($datos);
+
+                $sentencia = db()->prepare(
+                    'INSERT INTO alumnos (codigo, nombre, seccion_id, telefono, encargado_id, estado_pago, activo)
+                     VALUES (:codigo, :nombre, :seccion_id, :telefono, :encargado_id, :estado_pago, :activo)'
+                );
+                $sentencia->execute($alumno);
+
+                responder_ok(datos_padron(), [
+                    'mensaje'   => 'Alumno registrado en el padrón.',
+                    'alumno_id' => (int) db()->lastInsertId(),
+                ]);
+            }
+
+            if ($metodo === 'POST' && $accion === 'actualizar') {
+                $existe = db()->prepare('SELECT id FROM alumnos WHERE id = :id');
+                $existe->execute([':id' => $id]);
+
+                if ($existe->fetch() === false) {
+                    responder_error('no_encontrado', 'El alumno no existe.', 404);
+                }
+
+                $alumno = datos_de_alumno($datos, $id);
+                $alumno['id'] = $id;
+
+                db()->prepare(
+                    'UPDATE alumnos
+                     SET codigo = :codigo, nombre = :nombre, seccion_id = :seccion_id,
+                         telefono = :telefono, encargado_id = :encargado_id,
+                         estado_pago = :estado_pago, activo = :activo
+                     WHERE id = :id'
+                )->execute($alumno);
+
+                responder_ok(datos_padron(), ['mensaje' => 'Alumno actualizado.']);
+            }
+
+            if ($metodo === 'POST' && $accion === 'eliminar') {
+                $existe = db()->prepare('SELECT id FROM alumnos WHERE id = :id');
+                $existe->execute([':id' => $id]);
+
+                if ($existe->fetch() === false) {
+                    responder_error('no_encontrado', 'El alumno no existe.', 404);
+                }
+
+                $enViajes = db()->prepare('SELECT COUNT(*) FROM pasajeros WHERE alumno_id = :id');
+                $enViajes->execute([':id' => $id]);
+                $cantidad = (int) $enViajes->fetchColumn();
+
+                if ($cantidad > 0) {
+                    responder_error(
+                        'alumno_en_viaje',
+                        'El alumno ya participó en ' . $cantidad . ($cantidad === 1 ? ' viaje' : ' viajes')
+                        . '. Su historial sigue ligado al padrón: márcalo como inactivo en lugar de eliminarlo.',
+                        409,
+                        ['viajes' => $cantidad]
+                    );
+                }
+
+                db()->prepare('DELETE FROM alumnos WHERE id = :id')->execute([':id' => $id]);
+
+                responder_ok(datos_padron(), ['mensaje' => 'Alumno eliminado del padrón.']);
+            }
+
+            responder_error('ruta_desconocida', 'Acción no disponible para alumnos.');
             break;
 
         case 'parametros':

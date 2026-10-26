@@ -49,6 +49,8 @@ $versionJs = filemtime(__DIR__ . '/assets/js/app.js');
 
             <nav class="pestanas" id="pestanas" aria-label="Secciones del sistema">
                 <button type="button" class="pestana activa" data-vista="inicio" aria-selected="true">Inicio</button>
+                <button type="button" class="pestana" data-vista="alumnos" aria-selected="false">Alumnos</button>
+                <button type="button" class="pestana" data-vista="profesores" aria-selected="false">Profesores</button>
                 <button type="button" class="pestana" data-vista="administracion" aria-selected="false">Administración</button>
                 <button type="button" class="pestana" data-vista="estadisticas" aria-selected="false">Estadísticas</button>
             </nav>

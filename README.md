@@ -84,13 +84,15 @@ Después de marcar el viaje como finalizado, el botón **Generar listado** abre 
 * **Totales** por bus y de la salida completa (recaudado y pendiente), más un botón **Exportar PDF** por bus que reutiliza `listado.php`.
 
 ### Alumnos
-* **Padrón del instituto** con los alumnos migrados: nombre, código, teléfono, encargado, estado de pago y situación.
+* **Padrón del instituto** con los alumnos migrados: nombre, código, teléfono, encargado y situación.
 * **Agrupación por sección**: cada grupo (1A, 1AG, 2B…) encabeza su bloque con el número de alumnos inscritos, y el orden del listado sigue el del nombre de la sección.
 * **Filtros**: búsqueda por nombre, código o encargado, más selectores de año y de sección; se cargan una sola vez al abrir la pestaña y responden al instante.
 * **Alta, edición y borrado** de alumnos con validación de código repetido. Un alumno que ya participó en un viaje no se puede borrar: se le pide marcarlo como inactivo para conservar su historial.
 * **Encargado**: si el nombre ya existe en la base de datos se reutiliza y se autocompleta; si no, se crea y se vincula. Un encargado declarado con un solo nombre y sin registro previo no se guarda.
 * **Secciones**: tarjeta con cada sección, su año, su especialidad y sus alumnos, con alta, edición y borrado. No se puede eliminar una sección que todavía tiene alumnos.
-* Todos los alumnos del padrón están **pagados al 100 %**; el sistema no tiene planes de cuotas ni estado "por pagos".
+* **El pago no se gestiona en el padrón**: el alumno se agrega al viaje en el momento en
+  que paga y el control queda en la tabla `pagos` del viaje. Por eso esta vista no muestra
+  ningún estado de pago ni planes de cuotas; el padrón solo dice quién es cada alumno.
 
 ### Profesores
 * **Catálogo docente** del instituto con los diez campos originales: código, nombres, apellidos, sexo, fecha de nacimiento, cargo o especialidad, permiso de salida, alergias, fecha de registro y situación.
@@ -155,14 +157,14 @@ previo no se agregan: aparecen en el informe con su código y el motivo.
 
 ## Desarrollo y control de versiones
 
-* **Rama de trabajo:** `main`. Cada versión publicada lleva su etiqueta (`v0.5.1`) y su
+* **Rama de trabajo:** `main`. Cada versión publicada lleva su etiqueta (`v0.9.0`) y su
   entrada en el [CHANGELOG](CHANGELOG.md).
 * **Publicar una versión:**
 
   ```bash
   git add -A
   git commit -m "feat: resumen de los cambios"
-  git tag -a v0.5.2 -m "RideRoster v0.5.2"
+  git tag -a v0.9.0 -m "RideRoster v0.9.0"
   git push origin main --follow-tags
   ```
 
@@ -201,7 +203,7 @@ RideRoster/
 
 ## Estado del Proyecto
 
-La versión **0.5.1** marca el salto del prototipo a un sistema en operación:
+La versión **0.9.0** marca el salto del prototipo a un sistema en operación:
 
 * Los cinco módulos, **Inicio**, **Alumnos**, **Profesores**, **Administración** y **Estadísticas**, funcionan de punta a punta sobre MySQL con persistencia real.
 * El control de pasajeros, horarios, capacidad, cobros y acompañantes quedan centralizados y auditables en un solo lugar.

@@ -5,6 +5,80 @@ Todas las novedades de RideRoster se registran en este archivo.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el
 versionado se basa en [Semantic Versioning](https://semver.org/lang/es/).
 
+## [0.9.0] - 2026-10-25
+
+Versión del **padrón**: el Instituto Nacional de Apopa entra al sistema con sus alumnos,
+sus secciones y sus profesores, y la cabecera gana dos pestañas nuevas para gestionarlos.
+El padrón sigue **fuera de los viajes**: cada salida sigue recibiendo a sus pasajeros de
+forma individual, en el momento en que pagan.
+
+### Añadido
+
+#### Módulos Alumnos y Profesores
+- **Dos pestañas nuevas en la cabecera**, junto a Inicio y Administración, para gestionar
+  el padrón sin tocar los viajes.
+- **Padrón agrupado por sección**: la lista muestra nombre, código, teléfono, encargado y
+  situación de cada alumno, encabezada por el grupo (1A, 1AG, 2B…) con el número de
+  alumnos de cada sección. Sin columna de pago: el cobro se lleva en el viaje, no en el
+  padrón.
+- **Filtros en el navegador**: búsqueda por nombre, código o encargado más selectores de
+  año y de sección. El padrón se descarga una sola vez al abrir la pestaña y el resto de
+  los cambios de filtro son inmediatos.
+- **Alta, edición y borrado de alumnos** con validación de código repetido y de encargado
+  incompleto. Un alumno que ya participó en un viaje no se puede borrar: el API responde
+  con un error que recomienda marcarlo como inactivo.
+- **Gestión de secciones** desde la misma vista: nombre, año, especialidad y número de
+  alumnos inscritos, con alta, edición y borrado. Una sección con alumnos no se puede
+  eliminar y el año se deriva de la primera cifra del nombre si no se indica.
+- **Catálogo de profesores** con los diez campos del instituto, buscador, alta, edición y
+  borrado. Un profesor con paseos asignados no se puede eliminar: se marca inactivo.
+- **Selector de profesor en el paseo**: el formulario de Administración cambia el texto
+  libre por un menú con los profesores activos del catálogo; si no se elige uno, el
+  servidor rechaza el guardado con el mismo aviso de antes.
+
+#### Base de datos y migración del padrón
+- **Padrón de alumnos, secciones y profesores** (esquema v5): tablas nuevas `alumnos`
+  (código, nombre, teléfono, encargado y estado de pago), `secciones` (nombre único, año y
+  especialidad), `encargados` (nombre y teléfono, deduplicados por nombre) y `profesores`
+  (los diez campos del instituto, sin filtros ni modificaciones). Cada alumno queda en su
+  sección mediante `alumnos.seccion_id`. El padrón sigue **fuera de los viajes**: cada
+  salida seguirá recibiendo a sus pasajeros de forma individual.
+- **Enlaces nuevos**: `pasajeros.alumno_id` para agregar un alumno a un viaje por su
+  código, y `paseos.profesor_id` para elegir el profesor como opción y no como texto
+  libre. Las dos columnas conviven con las actuales, sin romper nada; el nombre de
+  `paseos.profesor_encargado` se sigue guardando y ahora el API lo completa con el nombre
+  completo del registro elegido.
+- **Estado de pago del padrón**: todos los alumnos migrados quedan al **100% (pagado)** en
+  el registro. No existen planes de cuotas ni la opción "por pagos": el dinero se controla
+  en `pagos`, viaje por viaje.
+- **Migración del instituto** `bin/rideroster migrar-instituto` (opciones
+  `--archivo=<ruta>`, `--simular` y `--limpiar`): carga el volcado phpMyAdmin del
+  Instituto Nacional de Apopa en una base temporal de solo lectura y traslada sus
+  profesores, secciones, encargados y alumnos. Reglas: el encargado que ya existe se
+  reutiliza y se autocompleta ("viaja con encargado"), el que no existe se crea y se
+  vincula, y el que está declarado sin datos completos y sin registro previo **bloquea ese
+  alumno** y queda en el informe de errores. La migración es idempotente y se revierte con
+  `--simular`.
+- **Recursos nuevos en el API**: `r=alumnos` (padrón completo con sus secciones y un
+  resumen), `r=secciones` y `r=profesores`, cada uno con sus acciones de crear, actualizar
+  y eliminar.
+- **Comando `migrar-instituto`** agregado a `bin/rideroster`, junto a `instalar`, `migrar`,
+  `estado` y `ayuda`.
+
+### Cambiado
+- La cabecera pasa de tres a cinco pestañas: junto a Inicio, Administración y
+  Estadísticas aparecen **Alumnos** y **Profesores**, que se cargan solo cuando se abren.
+  La barra se envuelve en pantallas estrechas en lugar de desbordar.
+- El campo **profesor a cargo** del paseo pasa de texto libre a un selector con el catálogo
+  de profesores. Un paseo guardado a mano conserva su nombre hasta que se vincule a un
+  registro del catálogo.
+- La vista de Alumnos **ya no muestra ni edita el estado de pago**: se quitó la columna de
+  la tabla, el campo del formulario y la métrica del resumen. El padrón solo dice quién es
+  cada alumno y el dinero se controla en `pagos`, viaje por viaje; los alumnos migrados
+  siguen registrados al 100% pagado.
+- Los filtros del padrón pasan a una sola fila a lo ancho de la tarjeta, con la búsqueda
+  ocupando el espacio que sobra y los selectores conservando solo el ancho de su texto.
+
 ## [0.5.1] - 2026-10-25
 
 Primera versión operativa del sistema: los módulos de **Inicio**, **Administración** y
@@ -48,27 +122,6 @@ Primera versión operativa del sistema: los módulos de **Inicio**, **Administra
 - **Borrado con doble confirmación**: un paseo que ya tiene viajes programados se puede
   eliminar; la segunda confirmación indica cuántos viajes, estudiantes y pagos se borrarán
   en cascada. Lo mismo aplica al eliminar un viaje que ya tiene estudiantes o pagos.
-
-#### Módulos Alumnos y Profesores
-- **Dos pestañas nuevas en la cabecera**, junto a Inicio y Administración, para gestionar
-  el padrón sin tocar los viajes.
-- **Padrón agrupado por sección**: la lista muestra nombre, código, teléfono, encargado,
-  pago y situación de cada alumno, encabezada por el grupo (1A, 1AG, 2B…) con el número de
-  alumnos de cada sección.
-- **Filtros en el navegador**: búsqueda por nombre, código o encargado más selectores de
-  año y de sección. El padrón se descarga una sola vez al abrir la pestaña y el resto de
-  los cambios de filtro son inmediatos.
-- **Alta, edición y borrado de alumnos** con validación de código repetido y de encargado
-  incompleto. Un alumno que ya participó en un viaje no se puede borrar: el API responde
-  con un error que recomienda marcarlo como inactivo.
-- **Gestión de secciones** desde la misma vista: nombre, año, especialidad y número de
-  alumnos inscritos, con alta, edición y borrado. Una sección con alumnos no se puede
-  eliminar y el año se deriva de la primera cifra del nombre si no se indica.
-- **Catálogo de profesores** con los diez campos del instituto, buscador, alta, edición y
-  borrado. Un profesor con paseos asignados no se puede eliminar: se marca inactivo.
-- **Selector de profesor en el paseo**: el formulario de Administración cambia el texto
-  libre por un menú con los profesores activos del catálogo; si no se elige uno, el
-  servidor rechaza el guardado con el mismo aviso de antes.
 
 #### Módulo Estadísticas
 - **Tasa de ocupación por autobús**: cada salida realizada muestra sus buses con la
@@ -167,33 +220,8 @@ Primera versión operativa del sistema: los módulos de **Inicio**, **Administra
   en cada arranque y aplica lo que falte, sin borrar información.
 - **Auto-instalación**: si la base de datos no existe, el sistema la crea junto con el
   esquema completo en el primer arranque.
-- **Padrón de alumnos, secciones y profesores** (esquema v5): tablas nuevas `alumnos`
-  (código, nombre, teléfono, encargado y estado de pago), `secciones` (nombre único, año y
-  especialidad), `encargados` (nombre y teléfono, deduplicados por nombre) y `profesores`
-  (los diez campos del instituto, sin filtros ni modificaciones). Cada alumno queda en su
-  sección mediante `alumnos.seccion_id`. El padrón sigue **fuera de los viajes**: cada
-  salida seguirá recibiendo a sus pasajeros de forma individual.
-- **Enlaces nuevos**: `pasajeros.alumno_id` para agregar un alumno a un viaje por su
-  código, y `paseos.profesor_id` para elegir el profesor como opción y no como texto
-  libre. Las dos columnas conviven con las actuales, sin romper nada; el nombre de
-  `paseos.profesor_encargado` se sigue guardando y ahora el API lo completa con el nombre
-  completo del registro elegido.
-- **Estado de pago del padrón**: todos los alumnos migrados quedan al **100% (pagado)**.
-  No existen planes de cuotas ni la opción "por pagos"; el pago total se materializa en la
-  tabla `pagos` cuando el alumno entra a un viaje.
-- **Migración del instituto** `bin/rideroster migrar-instituto` (opciones
-  `--archivo=<ruta>`, `--simular` y `--limpiar`): carga el volcado phpMyAdmin del
-  Instituto Nacional de Apopa en una base temporal de solo lectura y traslada sus
-  profesores, secciones, encargados y alumnos. Reglas: el encargado que ya existe se
-  reutiliza y se autocompleta ("viaja con encargado"), el que no existe se crea y se
-  vincula, y el que está declarado sin datos completos y sin registro previo **bloquea ese
-  alumno** y queda en el informe de errores. La migración es idempotente y se revierte con
-  `--simular`.
-- **Recursos nuevos en el API**: `r=alumnos` (padrón completo con sus secciones y un
-  resumen), `r=secciones` y `r=profesores`, cada uno con sus acciones de crear, actualizar
-  y eliminar.
 - **Herramienta de línea de comandos** `bin/rideroster` con los comandos `instalar`,
-  `migrar`, `migrar-instituto`, `estado` y `ayuda`.
+  `migrar`, `estado` y `ayuda`.
 - **Semilla de demostración** con 5 paseos, 7 viajes, 199 estudiantes, sus acompañantes,
   pagos y el personal de salvamento.
 
@@ -208,11 +236,6 @@ Primera versión operativa del sistema: los módulos de **Inicio**, **Administra
 - El **viaje actual** prioriza el viaje de hoy y, si no hay, el más próximo; cuando ya no
   quedan viajes vigentes conserva uno finalizado para poder generar su listado.
 - La instalación deja de exponerse en el navegador y pasa a ejecutarse desde la terminal.
-- El campo **profesor a cargo** del paseo pasa de texto libre a un selector con el catálogo
-  de profesores. Un paseo guardado a mano conserva su nombre hasta que se vincule a un
-  registro del catálogo.
-- La cabecera pasa de tres a cinco pestañas: junto a Inicio, Administración y
-  Estadísticas aparecen **Alumnos** y **Profesores**, que se cargan solo cuando se abren.
 
 ### Corregido
 - La reubicación devolvía un error cuando el listado se había regenerado en otra pestaña,
@@ -248,6 +271,7 @@ Primera versión operativa del sistema: los módulos de **Inicio**, **Administra
 ## [0.1.0] - 2026-09-28
 - Primer commit del proyecto.
 
+[0.9.0]: https://github.com/blankgloom/RideRoster/releases/tag/v0.9.0
 [0.5.1]: https://github.com/blankgloom/RideRoster/releases/tag/v0.5.1
 [0.4.0]: https://github.com/blankgloom/RideRoster/releases/tag/v0.4.0
 [0.3.0]: https://github.com/blankgloom/RideRoster/releases/tag/v0.3.0

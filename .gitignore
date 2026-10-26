@@ -19,3 +19,6 @@ Thumbs.db
 # Volcados locales de bases de datos (no forman parte del proyecto)
 database/*.sql
 !database/schema.sql
+
+# Documentación interna (no se publica en GitHub)
+/docs_kgloom/

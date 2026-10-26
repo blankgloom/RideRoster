@@ -143,7 +143,7 @@ function listar_alumnos(array $filtros = []): array
     $limite = $limite > 0 ? min(LIMITE_ALUMNOS, $limite) : LIMITE_ALUMNOS;
 
     $sentencia = db()->prepare(
-        'SELECT a.id, a.codigo, a.nombre, a.telefono, a.estado_pago, a.activo,
+        'SELECT a.id, a.codigo, a.nombre, a.telefono, a.activo,
                 a.seccion_id, s.nombre AS seccion, s.anio AS anio,
                 e.id AS encargado_id, e.nombre AS encargado, e.telefono AS telefono_encargado
          FROM alumnos a
@@ -195,7 +195,6 @@ function resumen_padron(): array
     $resumen = db()->query(
         'SELECT COUNT(*) AS alumnos,
                 COALESCE(SUM(encargado_id IS NOT NULL), 0) AS con_encargado,
-                COALESCE(SUM(estado_pago = \'pagado\'), 0) AS pagados,
                 COALESCE(SUM(activo = 1), 0) AS activos,
                 COUNT(DISTINCT seccion_id) AS secciones
          FROM alumnos'
@@ -204,7 +203,6 @@ function resumen_padron(): array
     return [
         'alumnos'       => (int) ($resumen['alumnos'] ?? 0),
         'con_encargado' => (int) ($resumen['con_encargado'] ?? 0),
-        'pagados'       => (int) ($resumen['pagados'] ?? 0),
         'activos'       => (int) ($resumen['activos'] ?? 0),
         'secciones'     => (int) ($resumen['secciones'] ?? 0),
     ];

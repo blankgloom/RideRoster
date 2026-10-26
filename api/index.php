@@ -205,8 +205,11 @@ function listar_personal(): array
 /**
  * Lee y valida los datos de un alumno del padrón.
  *
+ * El pago no se toca aquí: el padrón solo registra quién es cada alumno y el
+ * control del dinero vive en la tabla `pagos`, viaje por viaje.
+ *
  * @return array{codigo: string, nombre: string, seccion_id: ?int, telefono: ?string,
- *                encargado_id: ?int, estado_pago: string, activo: int}
+ *                encargado_id: ?int, activo: int}
  */
 function datos_de_alumno(array $datos, int $ignorar = 0): array
 {
@@ -243,12 +246,6 @@ function datos_de_alumno(array $datos, int $ignorar = 0): array
         );
     }
 
-    $estadoPago = texto($datos, 'estado_pago', 'pagado');
-
-    if (!in_array($estadoPago, ['pagado', 'pendiente'], true)) {
-        $estadoPago = 'pagado';
-    }
-
     // Se resuelve al final: si algo más falla no queda un encargado huérfano.
     $encargado = resolver_encargado(texto($datos, 'encargado'), texto($datos, 'telefono_encargado'));
 
@@ -265,13 +262,12 @@ function datos_de_alumno(array $datos, int $ignorar = 0): array
     $telefono = texto($datos, 'telefono');
 
     return [
-        'codigo'      => $codigo,
-        'nombre'      => $nombre,
-        'seccion_id'  => $seccionId,
-        'telefono'    => $telefono !== '' ? $telefono : null,
+        'codigo'       => $codigo,
+        'nombre'       => $nombre,
+        'seccion_id'   => $seccionId,
+        'telefono'     => $telefono !== '' ? $telefono : null,
         'encargado_id' => $encargado['id'],
-        'estado_pago' => $estadoPago,
-        'activo'      => filter_var($datos['activo'] ?? true, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
+        'activo'       => filter_var($datos['activo'] ?? true, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
     ];
 }
 
@@ -1512,8 +1508,8 @@ try {
                 $alumno = datos_de_alumno($datos);
 
                 $sentencia = db()->prepare(
-                    'INSERT INTO alumnos (codigo, nombre, seccion_id, telefono, encargado_id, estado_pago, activo)
-                     VALUES (:codigo, :nombre, :seccion_id, :telefono, :encargado_id, :estado_pago, :activo)'
+                    'INSERT INTO alumnos (codigo, nombre, seccion_id, telefono, encargado_id, activo)
+                     VALUES (:codigo, :nombre, :seccion_id, :telefono, :encargado_id, :activo)'
                 );
                 $sentencia->execute($alumno);
 
@@ -1537,8 +1533,7 @@ try {
                 db()->prepare(
                     'UPDATE alumnos
                      SET codigo = :codigo, nombre = :nombre, seccion_id = :seccion_id,
-                         telefono = :telefono, encargado_id = :encargado_id,
-                         estado_pago = :estado_pago, activo = :activo
+                         telefono = :telefono, encargado_id = :encargado_id, activo = :activo
                      WHERE id = :id'
                 )->execute($alumno);
 

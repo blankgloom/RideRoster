@@ -1293,10 +1293,6 @@
     }
 
     function filaAlumno(alumno) {
-        var pago = alumno.estado_pago === 'pagado'
-            ? '<span class="pastilla exito sin-punto">Pagado</span>'
-            : '<span class="pastilla atencion sin-punto">Pendiente</span>';
-
         return '<tr>' +
             '<td><span class="celda-principal">' + escapar(alumno.nombre) + '</span>' +
             '<span class="celda-secundaria numero">' + escapar(alumno.codigo) + '</span></td>' +
@@ -1305,7 +1301,6 @@
                 ? escapar(alumno.encargado) + '<span class="celda-secundaria">' +
                   (alumno.telefono_encargado ? escapar(alumno.telefono_encargado) : 'Sin teléfono') + '</span>'
                 : '<span class="sin-dato">Sin encargado</span>') + '</td>' +
-            '<td>' + pago + '</td>' +
             '<td>' + (alumno.activo
                 ? '<span class="pastilla primaria sin-punto">Activo</span>'
                 : '<span class="pastilla neutra sin-punto">Inactivo</span>') + '</td>' +
@@ -1329,7 +1324,7 @@
 
     function vistaAlumnos() {
         var encabezado = '<div class="encabezado-vista">' +
-            '<div><h1>Alumnos</h1><p>Padrón del instituto ordenado por sección: código, encargado y estado de pago.</p></div>' +
+            '<div><h1>Alumnos</h1><p>Padrón del instituto ordenado por sección: código, encargado y teléfono de contacto.</p></div>' +
             '<div class="acciones-vista">' +
             '<button type="button" class="boton boton-borde" data-accion="recargar-alumnos">' + icono(ICONOS.refrescar) + 'Actualizar</button>' +
             '<button type="button" class="boton boton-secundario" data-accion="nueva-seccion">Nueva sección</button>' +
@@ -1349,7 +1344,7 @@
                 '<div class="cargando"><span class="cargando-barra"></span><p>Cargando el padrón de alumnos</p></div></div>';
         }
 
-        var resumen = estado.resumenPadron || { alumnos: 0, con_encargado: 0, pagados: 0, secciones: 0 };
+        var resumen = estado.resumenPadron || { alumnos: 0, con_encargado: 0, activos: 0, secciones: 0 };
         var grupos = gruposDeAlumnos();
 
         var anios = [];
@@ -1374,12 +1369,12 @@
         }).join('');
 
         var filas = grupos.length ? grupos.map(function (grupo) {
-            return '<tr class="fila-grupo"><td colspan="6">' +
+            return '<tr class="fila-grupo"><td colspan="5">' +
                 '<span class="fila-grupo-nombre">' + escapar(grupo.nombre || 'Sin sección') + '</span>' +
                 '<span class="fila-grupo-cuenta">' + grupo.alumnos.length +
                 (grupo.alumnos.length === 1 ? ' alumno' : ' alumnos') + '</span>' +
                 '</td></tr>' + grupo.alumnos.map(filaAlumno).join('');
-        }).join('') : '<tr><td colspan="6"><div class="estado-vacio compacto">' +
+        }).join('') : '<tr><td colspan="5"><div class="estado-vacio compacto">' +
             '<strong>Sin alumnos que coincidan</strong>' +
             '<p>Ajusta la búsqueda o los filtros de sección.</p></div></td></tr>';
 
@@ -1407,7 +1402,7 @@
             '<select class="control" id="filtro-alumnos-seccion" aria-label="Filtrar por sección">' + opcionesSeccion + '</select>' +
             '</div>' +
             '<div class="tabla-envoltura tabla-alta"><table class="tabla"><thead><tr>' +
-            '<th>Alumno</th><th>Teléfono</th><th>Encargado</th><th>Pago</th><th>Estado</th><th></th>' +
+            '<th>Alumno</th><th>Teléfono</th><th>Encargado</th><th>Estado</th><th></th>' +
             '</tr></thead><tbody>' + filas + '</tbody></table></div>' +
             '</section>' +
             '</div>' +
@@ -1417,7 +1412,6 @@
             '<div class="tarjeta-cuerpo compacto"><div class="tarjeta-parametros">' +
             metrica('Alumnos', resumen.alumnos, 'inscritos en el padrón') +
             metrica('Con encargado', resumen.con_encargado, 'viajan acompañados') +
-            metrica('Pagados', resumen.pagados, 'al 100% desde la migración') +
             metrica('Secciones', resumen.secciones, 'con alumnos inscritos') +
             '</div></div></section>' +
             '<section class="tarjeta">' +
@@ -1578,11 +1572,6 @@
             '<div class="campo"><label class="campo-etiqueta" for="alumno-telefono-encargado">Teléfono del encargado</label>' +
             '<input type="text" class="control" id="alumno-telefono-encargado" name="telefono_encargado" placeholder="Opcional" value="' +
             escapar(alumno ? alumno.telefono_encargado || '' : '') + '"></div>' +
-            '<div class="campo"><label class="campo-etiqueta" for="alumno-pago">Estado de pago</label>' +
-            '<select class="control" id="alumno-pago" name="estado_pago">' +
-            '<option value="pagado"' + (!alumno || alumno.estado_pago === 'pagado' ? ' selected' : '') + '>Pagado al 100%</option>' +
-            '<option value="pendiente"' + (alumno && alumno.estado_pago === 'pendiente' ? ' selected' : '') + '>Pendiente</option>' +
-            '</select></div>' +
             '<div class="campo"><label class="campo-etiqueta" for="alumno-activo">Situación</label>' +
             '<select class="control" id="alumno-activo" name="activo">' +
             '<option value="1"' + (!alumno || alumno.activo ? ' selected' : '') + '>Activo</option>' +

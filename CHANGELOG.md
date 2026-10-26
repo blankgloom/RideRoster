@@ -13,6 +13,12 @@ versionado se basa en [Semantic Versioning](https://semver.org/lang/es/).
   megabyte del archivo original. El logo completo se muestra además en la cabecera del
   README, a simple vista al entrar al repositorio.
 
+### Cambiado
+- **El icono de la cabecera ahora es el de la marca**: la ilustración del logo, recortada
+  y con fondo transparente (`assets/img/icono-cabecera.png`, 320 px de ancho), sustituye
+  al bus de línea que había junto al nombre. Desaparece el rótulo «Colecturía · Instituto
+  Nacional de Apopa», porque el nombre del instituto ya viene dentro del logo.
+
 ## [0.9.0] - 2026-10-25
 
 Versión del **padrón**: el Instituto Nacional de Apopa entra al sistema con sus alumnos,

@@ -17,6 +17,7 @@ try {
 $versionCss = filemtime(__DIR__ . '/assets/css/app.css');
 $versionJs = filemtime(__DIR__ . '/assets/js/app.js');
 $versionFavicon = filemtime(__DIR__ . '/assets/img/favicon.png');
+$versionIcono = filemtime(__DIR__ . '/assets/img/icono-cabecera.png');
 
 ?><!DOCTYPE html>
 <html lang="es">
@@ -35,17 +36,10 @@ $versionFavicon = filemtime(__DIR__ . '/assets/img/favicon.png');
         <div class="cabecera-interior">
             <div class="marca">
                 <span class="marca-icono" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="4" width="18" height="12" rx="2.5"></rect>
-                        <path d="M3 11h18"></path>
-                        <path d="M7 16v2.5M17 16v2.5"></path>
-                        <circle cx="7.5" cy="13" r="1"></circle>
-                        <circle cx="16.5" cy="13" r="1"></circle>
-                    </svg>
+                    <img src="assets/img/icono-cabecera.png?v=<?= $versionIcono ?>" alt="">
                 </span>
                 <span class="marca-texto">
                     <strong>RideRoster</strong>
-                    <small>Colecturía · Instituto Nacional de Apopa</small>
                 </span>
             </div>
 

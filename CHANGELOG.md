@@ -5,6 +5,14 @@ Todas las novedades de RideRoster se registran en este archivo.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el
 versionado se basa en [Semantic Versioning](https://semver.org/lang/es/).
 
+## [0.9.1] - 2026-10-25
+
+### Añadido
+- **Favicon con el logo de RideRoster** en todas las páginas del sistema, generado a
+  128×128 px a partir de `assets/img/RideRoster_Logo.png` para que pese kilobytes y no el
+  megabyte del archivo original. El logo completo se muestra además en la cabecera del
+  README, a simple vista al entrar al repositorio.
+
 ## [0.9.0] - 2026-10-25
 
 Versión del **padrón**: el Instituto Nacional de Apopa entra al sistema con sus alumnos,

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/img/RideRoster_Logo.png" alt="Logo de RideRoster" width="220">
+</p>
+
 # RideRoster
 
 > **Sistema de gestión de viajes escolares** para la colecturía institucional.

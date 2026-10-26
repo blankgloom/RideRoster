@@ -12,6 +12,10 @@ $raiz = dirname(__DIR__);
 
 require_once $raiz . '/app/config.php';
 require_once $raiz . '/app/database.php';
+require_once $raiz . '/app/viajes.php';
+require_once $raiz . '/app/asientos.php';
+require_once $raiz . '/app/flotas.php';
+require_once $raiz . '/app/estadisticas.php';
 require_once $raiz . '/app/migracion.php';
 require_once $raiz . '/app/padron.php';
 require_once $raiz . '/app/migracion_instituto.php';

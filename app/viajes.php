@@ -25,7 +25,8 @@ function formato_dinero(float $valor): string
  */
 function consulta_viajes(): string
 {
-    return 'SELECT v.id, v.paseo_id, v.fecha, v.hora_salida, v.hora_retorno, v.capacidad_bus, v.estado, v.notas,
+    return 'SELECT v.id, v.paseo_id, v.fecha, v.hora_salida, v.hora_retorno, v.capacidad_bus, v.estado,
+                   v.boletos_cerrados, v.boletos_cerrados_en, v.notas,
                    p.nombre AS paseo_nombre, p.destino, p.costo_persona, p.profesor_encargado,
                    (SELECT COUNT(*) FROM pasajeros ps WHERE ps.viaje_id = v.id) AS pasajeros,
                    (SELECT COUNT(*) FROM pasajeros ps WHERE ps.viaje_id = v.id AND ps.encargado IS NOT NULL AND CHAR_LENGTH(ps.encargado) > 0) AS acompanantes,
@@ -81,16 +82,92 @@ function normalizar_viaje(array $fila): array
         'movimientos'       => (int) $fila['movimientos'],
         'personal'          => 1 + (int) $fila['equipo_salvamento'],
         'estado'            => $fila['estado'],
+        'boletos_cerrados'  => (int) ($fila['boletos_cerrados'] ?? 0) === 1,
+        'boletos_cerrados_en' => $fila['boletos_cerrados_en'] ?? null,
         'notas'             => $fila['notas'],
         'ocupacion'         => $capacidad > 0 ? min(100, (int) round(($ocupados / $capacidad) * 100)) : 0,
     ];
 }
 
+/**
+ * Compañeros de viaje declarados por los pasajeros de una salida, agrupados por
+ * el id de quien los pidió.
+ *
+ * @return array<int, string[]>
+ */
+function companeros_del_viaje(int $viajeId): array
+{
+    $sentencia = db()->prepare('SELECT c.pasajero_id, c.codigo
+                                FROM companeros c
+                                INNER JOIN pasajeros ps ON ps.id = c.pasajero_id
+                                WHERE ps.viaje_id = :viaje
+                                ORDER BY c.id ASC');
+    $sentencia->execute([':viaje' => $viajeId]);
+
+    $mapa = [];
+
+    foreach ($sentencia->fetchAll() as $fila) {
+        $codigo = normalizar_codigo((string) $fila['codigo']);
+
+        if ($codigo !== '') {
+            $mapa[(int) $fila['pasajero_id']][] = $codigo;
+        }
+    }
+
+    return $mapa;
+}
+
+/**
+ * Compañeros declarados por un solo pasajero.
+ *
+ * @return string[]
+ */
+function companeros_de_pasajero(int $pasajeroId): array
+{
+    $sentencia = db()->prepare('SELECT codigo FROM companeros WHERE pasajero_id = :pasajero ORDER BY id ASC');
+    $sentencia->execute([':pasajero' => $pasajeroId]);
+
+    $codigos = [];
+
+    foreach ($sentencia->fetchAll() as $fila) {
+        $codigo = normalizar_codigo((string) $fila['codigo']);
+
+        if ($codigo !== '') {
+            $codigos[] = $codigo;
+        }
+    }
+
+    return $codigos;
+}
+
+/**
+ * Guarda los compañeros declarados por un pasajero: se reemplaza la lista
+ * completa, sin duplicados y en el orden en que se escribieron.
+ */
+function guardar_companeros(int $pasajeroId, array $codigos): void
+{
+    db()->prepare('DELETE FROM companeros WHERE pasajero_id = :pasajero')
+        ->execute([':pasajero' => $pasajeroId]);
+
+    $insertar = db()->prepare('INSERT IGNORE INTO companeros (pasajero_id, codigo)
+                               VALUES (:pasajero, :codigo)');
+    $vistos = [];
+
+    foreach ($codigos as $codigo) {
+        $codigo = normalizar_codigo((string) $codigo);
+
+        if ($codigo === '' || isset($vistos[$codigo])) {
+            continue;
+        }
+
+        $vistos[$codigo] = true;
+        $insertar->execute([':pasajero' => $pasajeroId, ':codigo' => $codigo]);
+    }
+}
+
 function pasajeros_ordenados(int $viajeId, float $costoPersona = 0.0): array
 {
-    $columnaAmigo = columna_existe('pasajeros', 'amigo_codigo') ? 'ps.amigo_codigo' : 'NULL AS amigo_codigo';
-
-    $sql = 'SELECT ps.id, ps.nombre, ps.codigo, ps.encargado, ' . $columnaAmigo . ', ps.creado_en,
+    $sql = 'SELECT ps.id, ps.nombre, ps.codigo, ps.encargado, ps.creado_en,
                    (SELECT COALESCE(SUM(monto), 0) FROM pagos pg WHERE pg.pasajero_id = ps.id) AS pagado,
                    (SELECT COUNT(*) FROM pasajeros o WHERE o.viaje_id = ps.viaje_id AND o.codigo = ps.codigo) AS repeticiones
             FROM pasajeros ps
@@ -101,6 +178,7 @@ function pasajeros_ordenados(int $viajeId, float $costoPersona = 0.0): array
     $sentencia->execute([':viaje' => $viajeId]);
 
     $lista = $sentencia->fetchAll();
+    $companeros = companeros_del_viaje($viajeId);
 
     foreach ($lista as $indice => &$pasajero) {
         $pasajero['id'] = (int) $pasajero['id'];
@@ -109,7 +187,7 @@ function pasajeros_ordenados(int $viajeId, float $costoPersona = 0.0): array
         $pasajero['duplicado'] = (int) $pasajero['repeticiones'] > 1;
         $pasajero['costo'] = round($costoPersona * ($pasajero['encargado'] !== null && $pasajero['encargado'] !== '' ? 2 : 1), 2);
         $pasajero['pendiente'] = max(0.0, round($pasajero['costo'] - $pasajero['pagado'], 2));
-        $pasajero['amigo_codigo'] = $pasajero['amigo_codigo'] ? normalizar_codigo((string) $pasajero['amigo_codigo']) : null;
+        $pasajero['companeros'] = $companeros[$pasajero['id']] ?? [];
     }
 
     return $lista;
@@ -238,6 +316,33 @@ function viaje_actual(array $viajes): ?array
     }
 
     return $viajes === [] ? null : $viajes[0];
+}
+
+/**
+ * Finaliza automáticamente los viajes cuyos boletos ya se cerraron y cuya hora
+ * estimada de regreso ya pasó. Si el viaje no tiene hora de regreso se toma el
+ * final del día como límite. La finalización manual sigue disponible antes de
+ * esa hora para las salidas que terminan antes de lo previsto.
+ */
+function finalizar_viajes_vencidos(bool $forzar = false): void
+{
+    static $ejecutado = false;
+
+    if ($ejecutado && !$forzar) {
+        return;
+    }
+
+    if (!columna_existe('viajes', 'boletos_cerrados')) {
+        return;
+    }
+
+    $ejecutado = true;
+
+    db()->exec("UPDATE viajes
+                SET estado = 'finalizado'
+                WHERE estado <> 'finalizado'
+                  AND boletos_cerrados = 1
+                  AND TIMESTAMP(fecha, COALESCE(hora_retorno, '23:59:59')) <= NOW()");
 }
 
 function historial_de_viajes(array $viajes): array

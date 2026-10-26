@@ -16,6 +16,7 @@ try {
 
 $versionCss = filemtime(__DIR__ . '/assets/css/app.css');
 $versionJs = filemtime(__DIR__ . '/assets/js/app.js');
+$versionI18n = filemtime(__DIR__ . '/assets/js/i18n.js');
 $versionFavicon = filemtime(__DIR__ . '/assets/img/favicon.png');
 $versionIcono = filemtime(__DIR__ . '/assets/img/icono-cabecera.png');
 
@@ -52,6 +53,10 @@ $versionIcono = filemtime(__DIR__ . '/assets/img/icono-cabecera.png');
             </nav>
 
             <div class="cabecera-lateral">
+                <div class="selector-idioma" role="group" aria-label="Idioma / Language">
+                    <button type="button" class="idioma" data-idioma="es" aria-pressed="true">ES</button>
+                    <button type="button" class="idioma" data-idioma="en" aria-pressed="false">EN</button>
+                </div>
                 <span class="etiqueta-sistema" id="estado-sistema">
                     <span class="punto-estado"></span>
                     <span id="estado-sistema-texto">Colecturía activa</span>
@@ -109,8 +114,27 @@ $versionIcono = filemtime(__DIR__ . '/assets/img/icono-cabecera.png');
         </div>
     </div>
 
+    <div class="capa-modal capa-seleccion" id="capa-seleccion" hidden>
+        <div class="modal modal-seleccion" role="dialog" aria-modal="true" aria-labelledby="seleccion-titulo">
+            <header class="modal-cabecera">
+                <div>
+                    <p class="modal-sobretitulo" id="seleccion-sobretitulo"></p>
+                    <h2 class="modal-titulo" id="seleccion-titulo"></h2>
+                </div>
+                <button type="button" class="boton-icono" id="seleccion-cerrar" aria-label="Cerrar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                        <path d="M6 6l12 12M18 6L6 18"></path>
+                    </svg>
+                </button>
+            </header>
+            <div class="modal-cuerpo" id="seleccion-cuerpo"></div>
+            <footer class="modal-pie" id="seleccion-pie"></footer>
+        </div>
+    </div>
+
     <div class="avisos" id="avisos" aria-live="polite"></div>
 
     <script src="assets/js/app.js?v=<?= $versionJs ?>"></script>
+    <script src="assets/js/i18n.js?v=<?= $versionI18n ?>"></script>
 </body>
 </html>

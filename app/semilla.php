@@ -84,8 +84,10 @@ function sembrar_datos(PDO $pdo): void
         'Óscar Eduardo Renderos', 'Ana Cecilia Méndez', 'Miriam Yolanda Recinos',
     ];
 
-    $sentenciaPasajero = $pdo->prepare('INSERT INTO pasajeros (viaje_id, nombre, codigo, encargado, amigo_codigo)
-                                         VALUES (:viaje, :nombre, :codigo, :encargado, :amigo)');
+    $sentenciaPasajero = $pdo->prepare('INSERT INTO pasajeros (viaje_id, nombre, codigo, encargado)
+                                         VALUES (:viaje, :nombre, :codigo, :encargado)');
+    $sentenciaCompanero = $pdo->prepare('INSERT INTO companeros (pasajero_id, codigo)
+                                          VALUES (:pasajero, :codigo)');
     $sentenciaPago = $pdo->prepare('INSERT INTO pagos (viaje_id, pasajero_id, monto, metodo, fecha, nota)
                                     VALUES (:viaje, :pasajero, :monto, :metodo, :fecha, :nota)');
 
@@ -104,24 +106,39 @@ function sembrar_datos(PDO $pdo): void
         return (int) $pdo->lastInsertId();
     };
 
-    $poblar = static function (int $viajeId, int $cantidad, string $prefijo, float $costo, string $fechaPago, bool $conDuplicado = false) use ($pdo, $sentenciaPasajero, $sentenciaPago, $estudiantes, $encargados): void {
+    $poblar = static function (int $viajeId, int $cantidad, string $prefijo, float $costo, string $fechaPago, bool $conDuplicado = false) use ($pdo, $sentenciaPasajero, $sentenciaCompanero, $sentenciaPago, $estudiantes, $encargados): void {
         $total = min($cantidad, count($estudiantes));
         $pasajeros = [];
 
         for ($i = 0; $i < $total; $i++) {
             $codigo = sprintf('%s%02d', $prefijo, $i + 1);
             $encargado = $i % 3 === 0 ? $encargados[$i % count($encargados)] : null;
-            $amigo = $i % 5 === 0 && $i + 1 < $total ? sprintf('%s%02d', $prefijo, $i + 2) : null;
 
             $sentenciaPasajero->execute([
                 ':viaje'     => $viajeId,
                 ':nombre'    => $estudiantes[$i],
                 ':codigo'    => $codigo,
                 ':encargado' => $encargado,
-                ':amigo'     => $amigo,
             ]);
 
-            $pasajeros[] = (int) $pdo->lastInsertId();
+            $pasajeroId = (int) $pdo->lastInsertId();
+            $pasajeros[] = $pasajeroId;
+
+            // De cada cinco estudiantes, el primero viaja con los dos que le siguen.
+            if ($i % 5 !== 0) {
+                continue;
+            }
+
+            foreach ([1, 2] as $paso) {
+                if ($i + $paso >= $total) {
+                    continue;
+                }
+
+                $sentenciaCompanero->execute([
+                    ':pasajero' => $pasajeroId,
+                    ':codigo'   => sprintf('%s%02d', $prefijo, $i + $paso + 1),
+                ]);
+            }
         }
 
         if ($conDuplicado && $pasajeros !== []) {
@@ -130,7 +147,6 @@ function sembrar_datos(PDO $pdo): void
                 ':nombre'    => $estudiantes[count($estudiantes) - 1],
                 ':codigo'    => sprintf('%s%02d', $prefijo, 1),
                 ':encargado' => $encargados[0],
-                ':amigo'     => null,
             ]);
         }
 

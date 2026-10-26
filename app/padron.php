@@ -108,10 +108,17 @@ function condiciones_alumnos(array $filtros): array
     $busqueda = colapsar_espacios((string) ($filtros['q'] ?? ''));
 
     if ($busqueda !== '') {
-        $condiciones[] = '(a.nombre LIKE :busqueda OR a.codigo LIKE :busqueda
-                           OR e.nombre LIKE :busqueda OR e.telefono LIKE :busqueda
-                           OR a.telefono LIKE :busqueda)';
-        $parametros[':busqueda'] = '%' . $busqueda . '%';
+        // Cada condición lleva su propio marcador: con las preparaciones nativas
+        // de MySQL un mismo nombre no se puede repetir en la consulta.
+        $claves = [];
+
+        foreach (['a.nombre', 'a.codigo', 'e.nombre', 'e.telefono', 'a.telefono'] as $campo) {
+            $nombre = ':busqueda' . count($claves);
+            $claves[] = $campo . ' LIKE ' . $nombre;
+            $parametros[$nombre] = '%' . $busqueda . '%';
+        }
+
+        $condiciones[] = '(' . implode(' OR ', $claves) . ')';
     }
 
     $seccionId = (int) ($filtros['seccion_id'] ?? 0);
@@ -166,6 +173,48 @@ function listar_alumnos(array $filtros = []): array
     }
 
     return $alumnos;
+}
+
+/**
+ * Alumno del padrón que usa un código, con su sección y su encargado si los tiene.
+ *
+ * Permite agregar a un estudiante a un viaje escribiendo solo su código.
+ *
+ * @return array<string, mixed>|null
+ */
+function alumno_por_codigo(string $codigo): ?array
+{
+    $codigo = normalizar_codigo($codigo);
+
+    if ($codigo === '') {
+        return null;
+    }
+
+    $sentencia = db()->prepare(
+        'SELECT a.id, a.codigo, a.nombre, a.telefono, a.activo, a.seccion_id,
+                s.nombre AS seccion,
+                e.id AS encargado_id, e.nombre AS encargado
+         FROM alumnos a
+         LEFT JOIN secciones s ON s.id = a.seccion_id
+         LEFT JOIN encargados e ON e.id = a.encargado_id
+         WHERE a.codigo = :codigo
+         LIMIT 1'
+    );
+    $sentencia->execute([':codigo' => $codigo]);
+
+    $alumno = $sentencia->fetch();
+
+    if ($alumno === false) {
+        return null;
+    }
+
+    $alumno['id'] = (int) $alumno['id'];
+    $alumno['seccion_id'] = $alumno['seccion_id'] !== null ? (int) $alumno['seccion_id'] : null;
+    $alumno['encargado_id'] = $alumno['encargado_id'] !== null ? (int) $alumno['encargado_id'] : null;
+    $alumno['activo'] = (int) $alumno['activo'];
+    $alumno['con_encargado'] = $alumno['encargado_id'] !== null;
+
+    return $alumno;
 }
 
 /**
@@ -361,9 +410,17 @@ function listar_profesores(?string $busqueda = null): array
     $busqueda = colapsar_espacios((string) $busqueda);
 
     if ($busqueda !== '') {
-        $condicion = ' WHERE p.codigo LIKE :busqueda OR p.nombres LIKE :busqueda
-                       OR p.apellidos LIKE :busqueda OR p.especialidad_cargo LIKE :busqueda';
-        $parametros[':busqueda'] = '%' . $busqueda . '%';
+        // Un marcador por columna: MySQL no admite repetir el mismo nombre en
+        // una consulta con preparaciones nativas.
+        $claves = [];
+
+        foreach (['p.codigo', 'p.nombres', 'p.apellidos', 'p.especialidad_cargo'] as $campo) {
+            $nombre = ':busqueda' . count($claves);
+            $claves[] = $campo . ' LIKE ' . $nombre;
+            $parametros[$nombre] = '%' . $busqueda . '%';
+        }
+
+        $condicion = ' WHERE ' . implode(' OR ', $claves);
     }
 
     $sentencia = db()->prepare(

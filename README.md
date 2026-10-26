@@ -21,6 +21,25 @@
 
 ## Puesta en marcha
 
+## Despliegue Principal con XAMPP
+
+El método de despliegue principal para RideRoster se realiza a través de XAMPP, el cual integra Apache, MariaDB y PHP.
+
+### 1. Instalación de XAMPP (Windows)
+
+1. **Descarga XAMPP**: Visita el sitio web oficial de Apache Friends y descarga la versión de XAMPP con PHP 8.1 o superior.
+2. **Ejecuta el instalador**: Sigue los pasos del asistente de instalación. Se recomienda dejar la ruta predeterminada (`C:\xampp`).
+3. **Copia el proyecto**: Al finalizar la instalación, coloca la carpeta completa del proyecto `RideRoster` dentro del directorio `C:\xampp\htdocs\`, de modo que la ruta quede como `C:\xampp\htdocs\RideRoster`.
+4. **Inicia los servicios**: Abre el "XAMPP Control Panel" y haz clic en **"Start"** en los módulos de **Apache** y **MySQL**.
+5. **Configuración de autoarranque (Opcional)**:
+   * En el panel de control de XAMPP, haz clic en el botón **"Config"** junto a Apache y MySQL y selecciona **"Service"** para instalarlos como servicios del sistema.
+   * También puedes abrir "Servicios" en Windows, buscar `Apache2.4` y `MySQL`, cambiar su tipo de inicio a **Automático** e iniciarlos.
+6. **Instalación de la base de datos**
+   * Para esto, se debe tener una copia de la DB, que el desarrollador le dará, abrir `https://localhost/phpmyadmin/`. en el navegador, ir a SQL, usar el comando  ```bash CREATE DATABASE rideroster;```, y por último darle click a 'importar' y poner el archivo .sql que el desarrollador proporcione.
+7. **Acceso al sistema**: Abre tu navegador web e ingresa a `http://localhost/RideRoster/index.php`. 
+
+### 1. Instalación de XAMPP (Linux), método secundario
+
 ```bash
 # 1. Crear la base de datos y cargar los datos de demostración
 php bin/rideroster instalar
@@ -45,7 +64,8 @@ queda desactualizado. La guía completa está en **[INSTALACION.md](INSTALACION.
 * Indicadores de gestión: estudiantes inscritos, cupos disponibles, dinero recaudado y personal a bordo.
 * **Historial de viajes** con el detalle de cada salida realizada y de los próximos viajes programados.
 * Botón **Gestionar viaje**: permite ajustar el día, la hora de salida, la hora estimada de regreso, la capacidad máxima del bus (55 asientos por defecto), registrar y retirar estudiantes, y anotar los pagos recaudados.
-* Botón **Marcar viaje como finalizado**, ubicado debajo de la barra de ocupación. Al pulsarlo el viaje queda cerrado y, en el mismo lugar, aparece el botón **Generar listado**.
+* Botón **Cerrar boletos**, ubicado debajo de la barra de ocupación. Al pulsarlo ya no se pueden inscribir más estudiantes y, en el mismo lugar, aparecen **Ver listado de estudiantes** y **Finalizar viaje ahora**. Mientras los boletos siguen abiertos, el listado también se consulta con **Ver listado**, junto a **Gestionar viaje**.
+* Una vez cerrados los boletos, el viaje se finaliza automáticamente al pasar la **hora estimada de regreso**; si la salida termina antes de lo previsto, se puede finalizar con **Finalizar viaje ahora**.
 * Al agregar un estudiante solo se requieren **nombre, código y el nombre del encargado** (cuando viaja acompañado). Si el código ya existe en el viaje, el sistema muestra la alerta **Código repetido** con el nombre y el encargado del registro anterior, y permite registrarlo de todos modos o corregirlo.
 
 ### Costo de los acompañantes
@@ -161,14 +181,14 @@ previo no se agregan: aparecen en el informe con su código y el motivo.
 
 ## Desarrollo y control de versiones
 
-* **Rama de trabajo:** `main`. Cada versión publicada lleva su etiqueta (`v0.9.0`) y su
+* **Rama de trabajo:** `main`. Cada versión publicada lleva su etiqueta (`v1.0.0`) y su
   entrada en el [CHANGELOG](CHANGELOG.md).
 * **Publicar una versión:**
 
   ```bash
   git add -A
   git commit -m "feat: resumen de los cambios"
-  git tag -a v0.9.0 -m "RideRoster v0.9.0"
+  git tag -a v1.0.0 -m "RideRoster v1.0.0"
   git push origin main --follow-tags
   ```
 
@@ -207,7 +227,7 @@ RideRoster/
 
 ## Estado del Proyecto
 
-La versión **0.9.0** marca el salto del prototipo a un sistema en operación:
+La versión **1.0.0** marca el sistema completo y estable en operación:
 
 * Los cinco módulos, **Inicio**, **Alumnos**, **Profesores**, **Administración** y **Estadísticas**, funcionan de punta a punta sobre MySQL con persistencia real.
 * El control de pasajeros, horarios, capacidad, cobros y acompañantes quedan centralizados y auditables en un solo lugar.

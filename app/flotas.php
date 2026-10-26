@@ -88,6 +88,31 @@ function salida_de_viaje(int $viajeId): ?array
 }
 
 /**
+ * Cierra los boletos de todos los buses de una salida. A partir de ese momento
+ * no se pueden inscribir más estudiantes y el listado queda disponible.
+ */
+function cerrar_boletos_de_salida(int $viajeId): bool
+{
+    $salida = salida_de_viaje($viajeId);
+
+    if ($salida === null) {
+        return false;
+    }
+
+    $sentencia = db()->prepare('UPDATE viajes
+                                SET boletos_cerrados = 1, boletos_cerrados_en = NOW()
+                                WHERE paseo_id = :paseo AND fecha = :fecha
+                                  AND TIME_FORMAT(hora_salida, "%H:%i") = :salida');
+    $sentencia->execute([
+        ':paseo'  => (int) $salida['paseo_id'],
+        ':fecha'  => (string) $salida['fecha'],
+        ':salida' => (string) $salida['hora_salida'],
+    ]);
+
+    return true;
+}
+
+/**
  * Viajes (buses) que pertenecen a una misma salida, ordenados por creación.
  *
  * @return array<int, array<string, mixed>>
@@ -195,7 +220,7 @@ function detalle_salida(array $salida): ?array
                 'nombre'    => (string) $pasajero['nombre'],
                 'codigo'    => (string) $pasajero['codigo'],
                 'encargado' => $pasajero['encargado'],
-                'amigo_codigo' => $pasajero['amigo_codigo'],
+                'companeros' => $pasajero['companeros'],
                 'personas'  => personas_de_pasajero($pasajero),
                 'asiento'   => $asientosPorPasajero[(int) $pasajero['id']] ?? null,
                 'costo'     => (float) $pasajero['costo'],
@@ -495,36 +520,61 @@ function grupos_de_pasajeros_de_salida(array $buses): array
         }
     }
 
+    $porId = [];
     $porCodigo = [];
 
     foreach ($pasajeros as $pasajero) {
-        $porCodigo[normalizar_codigo((string) $pasajero['codigo'])] = $pasajero;
+        $id = (int) $pasajero['id'];
+        $porId[$id] = $pasajero;
+        $porCodigo[normalizar_codigo((string) $pasajero['codigo'])] = $id;
+    }
+
+    // Un estudiante puede declarar varios compañeros; el enlace vale en los dos
+    // sentidos pero solo entre pasajeros del mismo bus.
+    $vecinos = [];
+
+    foreach ($porId as $id => $pasajero) {
+        foreach ($pasajero['companeros'] ?? [] as $codigo) {
+            $vecino = $porCodigo[normalizar_codigo((string) $codigo)] ?? null;
+
+            if ($vecino === null || $vecino === $id) {
+                continue;
+            }
+
+            if ((int) $porId[$vecino]['viaje_id'] !== (int) $pasajero['viaje_id']) {
+                continue;
+            }
+
+            $vecinos[$id][$vecino] = true;
+            $vecinos[$vecino][$id] = true;
+        }
     }
 
     $usados = [];
     $grupos = [];
 
-    foreach ($pasajeros as $pasajero) {
-        if (isset($usados[(int) $pasajero['id']])) {
+    foreach ($porId as $id => $pasajero) {
+        if (isset($usados[$id])) {
             continue;
         }
 
-        $usados[(int) $pasajero['id']] = true;
+        $usados[$id] = true;
+        $cola = [$id];
         $miembros = [$pasajero];
         $personas = personas_de_pasajero($pasajero);
 
-        $codigoAmigo = $pasajero['amigo_codigo'] !== null
-            ? normalizar_codigo((string) $pasajero['amigo_codigo'])
-            : '';
+        while ($cola !== []) {
+            $actual = array_pop($cola);
 
-        if ($codigoAmigo !== '' && isset($porCodigo[$codigoAmigo])) {
-            $companero = $porCodigo[$codigoAmigo];
+            foreach (array_keys($vecinos[$actual] ?? []) as $vecino) {
+                if (isset($usados[$vecino])) {
+                    continue;
+                }
 
-            if ((int) $companero['viaje_id'] === (int) $pasajero['viaje_id']
-                && !isset($usados[(int) $companero['id']])) {
-                $usados[(int) $companero['id']] = true;
-                $miembros[] = $companero;
-                $personas += personas_de_pasajero($companero);
+                $usados[$vecino] = true;
+                $miembros[] = $porId[$vecino];
+                $personas += personas_de_pasajero($porId[$vecino]);
+                $cola[] = $vecino;
             }
         }
 

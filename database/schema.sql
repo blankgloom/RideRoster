@@ -99,6 +99,8 @@ CREATE TABLE IF NOT EXISTS viajes (
     hora_retorno  TIME NULL,
     capacidad_bus INT NOT NULL DEFAULT 55,
     estado        ENUM('programado', 'en_curso', 'finalizado') NOT NULL DEFAULT 'programado',
+    boletos_cerrados TINYINT(1) NOT NULL DEFAULT 0,
+    boletos_cerrados_en DATETIME NULL,
     notas         TEXT NULL,
     creado_en     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_viajes_paseo FOREIGN KEY (paseo_id) REFERENCES paseos (id),
@@ -113,12 +115,25 @@ CREATE TABLE IF NOT EXISTS pasajeros (
     codigo       VARCHAR(40) NOT NULL,
     alumno_id    INT NULL,
     encargado    VARCHAR(140) NULL,
-    amigo_codigo VARCHAR(40) NULL,
     creado_en    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_pasajeros_viaje FOREIGN KEY (viaje_id) REFERENCES viajes (id) ON DELETE CASCADE,
     CONSTRAINT fk_pasajeros_alumno FOREIGN KEY (alumno_id) REFERENCES alumnos (id) ON DELETE SET NULL,
     INDEX idx_pasajeros_viaje (viaje_id),
     INDEX idx_pasajeros_codigo (viaje_id, codigo)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Compañeros de viaje declarados por un pasajero: con quien pide sentarse.
+-- Un mismo estudiante puede declarar varios (el grupito completo) y el sistema
+-- los acomoda juntos al generar el plano.
+
+CREATE TABLE IF NOT EXISTS companeros (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    pasajero_id INT NOT NULL,
+    codigo      VARCHAR(40) NOT NULL,
+    creado_en   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_companeros (pasajero_id, codigo),
+    INDEX idx_companeros_codigo (codigo),
+    CONSTRAINT fk_companeros_pasajero FOREIGN KEY (pasajero_id) REFERENCES pasajeros (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS asientos (

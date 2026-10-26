@@ -5,6 +5,32 @@ Todas las novedades de RideRoster se registran en este archivo.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el
 versionado se basa en [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.0.0] - 2026-10-25
+
+Versión **1.0.0**: el sistema queda completo y estable. Se cierra el ciclo de desarrollo
+inicial con todos los módulos funcionando de punta a punta y la documentación de usuario
+terminada.
+
+### Añadido
+- **Manual de usuario completo** (`docs_kgloom/03-manual-de-usuario.md`): 16 capítulos
+  que cubren acceso, diseño, Inicio, Alumnos y encargados, Profesores, Administración,
+  gestión del viaje, Estadísticas, listado de abordaje y PDF, reglas negativas, mensajes
+  y errores, atajos y accesibilidad, glosario y anexos. Incluye inventario de 50 capturas.
+- **Selector de idioma ES/EN** en la cabecera: capa de traducción visual de la interfaz,
+  con persistencia en `localStorage` y `lang` del documento. El listado de abordaje y el
+  PDF se generan siempre en español.
+- **Internacionalización** (`assets/js/i18n.js`) para textos visibles, placeholders,
+  títulos, etiquetas y mensajes generados por la aplicación.
+
+### Cambiado
+- **Numeración de versión a 1.0.0** en README, CHANGELOG y documentación interna.
+- **Ajustes de interfaz y estilos** en `assets/css/app.css` y `assets/js/app.js` para
+  cierre de boletos, listado de estudiantes, redistribución y Estadísticas.
+
+### Estable
+- Los cinco módulos (Inicio, Alumnos, Profesores, Administración y Estadísticas)
+  operan sobre MySQL con persistencia real, migración automática y auto-instalación.
+
 ## [0.9.1] - 2026-10-25
 
 ### Añadido
@@ -14,6 +40,14 @@ versionado se basa en [Semantic Versioning](https://semver.org/lang/es/).
   README, a simple vista al entrar al repositorio.
 
 ### Cambiado
+- **Cierre de boletos y listado de estudiantes**: el botón «Marcar viaje como finalizado»
+  pasa a llamarse **Cerrar boletos**. Al pulsarlo ya no se pueden inscribir más estudiantes
+  y quedan disponibles **Ver listado de estudiantes** y **Finalizar viaje ahora**. Mientras
+  los boletos siguen abiertos, el listado se consulta con **Ver listado**, junto a
+  **Gestionar viaje**; ese botón desaparece al cerrar los boletos.
+- **Finalización automática del viaje** al pasar la hora estimada de regreso, una vez
+  cerrados los boletos. La salida puede finalizarse antes de lo previsto con **Finalizar
+  viaje ahora**.
 - **El icono de la cabecera ahora es el de la marca**: la ilustración del logo, recortada
   y con fondo transparente (`assets/img/icono-cabecera.png`, 320 px de ancho), sustituye
   al bus de línea que había junto al nombre. Desaparece el rótulo «Colecturía · Instituto

@@ -200,6 +200,46 @@ svg {
     gap: 1rem;
 }
 
+.selector-idioma {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.125rem;
+    padding: 0.1875rem;
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio-completo);
+    background: var(--color-fondo);
+}
+
+.selector-idioma .idioma {
+    min-width: 1.875rem;
+    padding: 0.1875rem 0.4375rem;
+    border: 0;
+    border-radius: var(--radio-completo);
+    background: transparent;
+    color: var(--color-texto-apagado);
+    font-family: inherit;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: background var(--transicion), color var(--transicion), box-shadow var(--transicion);
+}
+
+.selector-idioma .idioma:hover {
+    color: var(--color-primario);
+}
+
+.selector-idioma .idioma:focus-visible {
+    outline: 2px solid var(--color-primario);
+    outline-offset: 1px;
+}
+
+.selector-idioma .idioma.activo {
+    background: var(--color-superficie);
+    color: var(--color-primario);
+    box-shadow: var(--sombra-1);
+}
+
 .etiqueta-sistema {
     display: inline-flex;
     align-items: center;
@@ -1175,6 +1215,126 @@ svg {
     font-weight: 500;
 }
 
+/* Autocompletado del padrón y chips de compañeros en el alta de pasajeros */
+.control-envoltura {
+    position: relative;
+    display: block;
+}
+
+.autocompletar {
+    position: absolute;
+    top: calc(100% + 0.25rem);
+    left: 0;
+    right: 0;
+    z-index: 40;
+    padding: 0.25rem;
+    background: var(--color-superficie);
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio-md);
+    box-shadow: var(--sombra-3);
+    max-height: 15rem;
+    overflow-y: auto;
+}
+
+.autocompletar[hidden] {
+    display: none;
+}
+
+.sugerencia {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.5rem 0.625rem;
+    border: 0;
+    border-radius: var(--radio);
+    background: transparent;
+    color: var(--color-texto);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.sugerencia:hover,
+.sugerencia.activa {
+    background: var(--color-fondo);
+}
+
+.sugerencia-codigo {
+    flex: none;
+    padding: 0.125rem 0.375rem;
+    border-radius: var(--radio-sm);
+    background: var(--color-primario-suave);
+    color: var(--color-primario);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.sugerencia-datos {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.sugerencia-datos strong {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sugerencia-datos small {
+    font-size: 0.6875rem;
+    color: var(--color-texto-apagado);
+}
+
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-bottom: 0.375rem;
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.25rem 0.25rem 0.5rem;
+    border: 1px solid var(--color-borde-fuerte);
+    border-radius: var(--radio-completo);
+    background: var(--color-primario-suave);
+    color: var(--color-primario-fuerte);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.chip-quitar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.125rem;
+    height: 1.125rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-texto-apagado);
+    cursor: pointer;
+}
+
+.chip-quitar:hover {
+    background: var(--color-error-fondo);
+    color: var(--color-error-texto);
+}
+
+.chip-quitar .icono {
+    width: 0.75rem;
+    height: 0.75rem;
+}
+
 .control {
     height: 40px;
     padding: 0 0.75rem;
@@ -1525,6 +1685,134 @@ select.control {
 
 .modal-pie .grupo-botones {
     margin-left: auto;
+}
+
+/* Ventana secundaria: selectores que se abren encima de un formulario */
+
+.capa-seleccion {
+    z-index: 70;
+    align-items: flex-start;
+    padding-top: 7vh;
+}
+
+.capa-seleccion[hidden] {
+    display: none;
+}
+
+.modal-seleccion {
+    width: min(640px, 100%);
+    max-height: min(78vh, 780px);
+}
+
+.modal-seleccion .modal-cuerpo {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.seleccion-buscador {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 1rem 1.5rem;
+    background: var(--color-superficie);
+    border-bottom: 1px solid var(--color-borde);
+}
+
+.seleccion-buscador .buscador {
+    width: 100%;
+}
+
+.lista-seleccion {
+    list-style: none;
+    margin: 0;
+    padding: 0.4rem 0;
+    overflow-y: auto;
+}
+
+.fila-seleccion {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.6rem 1.5rem;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--transicion);
+}
+
+.fila-seleccion:hover,
+.fila-seleccion:focus-visible {
+    background: var(--color-superficie-alterna);
+    outline: none;
+}
+
+.fila-seleccion[aria-selected="true"] {
+    background: var(--color-primario-suave);
+}
+
+.fila-seleccion .inicial-persona {
+    flex: none;
+}
+
+.fila-seleccion-datos {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.fila-seleccion-nombre {
+    font-weight: 600;
+}
+
+.fila-seleccion-meta {
+    font-size: 0.8rem;
+    color: var(--color-texto-apagado);
+}
+
+.fila-seleccion-vacia {
+    padding: 1.75rem 1.5rem;
+    text-align: center;
+    color: var(--color-texto-apagado);
+}
+
+/* Valor elegido en un campo que abre una ventana de selección */
+
+.campo-selector {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 42px;
+    padding: 0.35rem 0.35rem 0.35rem 0.75rem;
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio);
+    background: var(--color-superficie-alterna);
+}
+
+.campo-selector-valor {
+    min-width: 0;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.campo-selector-valor.sin-valor {
+    font-weight: 400;
+    color: var(--color-texto-apagado);
+}
+
+.campo-selector-acciones {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex: none;
 }
 
 .modal-rejilla {

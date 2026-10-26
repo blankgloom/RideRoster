@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 const PREFIJOS_CODIGO = ['2B', '3A', '3C', '2D', '1A', '3B', '4A', '2C'];
-const ESQUEMA_VERSION = 5;
+const ESQUEMA_VERSION = 7;
 
-const TABLAS_PRINCIPALES = ['paseos', 'viajes', 'pasajeros', 'pagos', 'parametros', 'alumnos', 'profesores', 'encargados', 'secciones'];
+const TABLAS_PRINCIPALES = ['paseos', 'viajes', 'pasajeros', 'companeros', 'pagos', 'parametros', 'alumnos', 'profesores', 'encargados', 'secciones'];
 
 function tablas_principales_existen(): bool
 {
@@ -71,7 +71,7 @@ function columna_existe(string $tabla, string $columna): bool
 
 function esquema_al_actualizado(): bool
 {
-    return tabla_existe('asientos') && columna_existe('pasajeros', 'amigo_codigo');
+    return tabla_existe('asientos') && tabla_existe('companeros') && columna_existe('viajes', 'boletos_cerrados');
 }
 
 /**
@@ -225,6 +225,59 @@ function crear_tabla_asientos(): void
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
 }
 
+/**
+ * Columnas que marcan el cierre de boletos de una salida.
+ */
+function aplicar_esquema_boletos(): void
+{
+    agregar_columna_si_falta('viajes', 'boletos_cerrados', 'boletos_cerrados TINYINT(1) NOT NULL DEFAULT 0');
+    agregar_columna_si_falta('viajes', 'boletos_cerrados_en', 'boletos_cerrados_en DATETIME NULL');
+}
+
+/**
+ * Crea la tabla de compañeros de viaje.
+ */
+function crear_tabla_companeros(): void
+{
+    if (!tabla_existe('pasajeros')) {
+        return;
+    }
+
+    db()->exec('CREATE TABLE IF NOT EXISTS companeros (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        pasajero_id INT NOT NULL,
+        codigo      VARCHAR(40) NOT NULL,
+        creado_en   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_companeros (pasajero_id, codigo),
+        INDEX idx_companeros_codigo (codigo),
+        CONSTRAINT fk_companeros_pasajero FOREIGN KEY (pasajero_id) REFERENCES pasajeros (id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+}
+
+/**
+ * Un pasajero puede declarar varios compañeros con los que quiere sentarse, así
+ * que el código único que vivía en la columna amigo_codigo pasa a la tabla
+ * companeros. Lo que ya estaba guardado se conserva.
+ */
+function migrar_companeros_de_pasajeros(): void
+{
+    crear_tabla_companeros();
+
+    if (!columna_existe('pasajeros', 'amigo_codigo')) {
+        return;
+    }
+
+    $yaMigrado = (int) db()->query('SELECT COUNT(*) FROM companeros')->fetchColumn() > 0;
+
+    if (!$yaMigrado) {
+        db()->exec("INSERT INTO companeros (pasajero_id, codigo)
+                    SELECT id, UPPER(TRIM(amigo_codigo)) FROM pasajeros
+                    WHERE amigo_codigo IS NOT NULL AND TRIM(amigo_codigo) <> ''");
+    }
+
+    db()->exec('ALTER TABLE pasajeros DROP COLUMN amigo_codigo');
+}
+
 function normalizar_codigos_existentes(): void
 {
     $viajes = db()->query('SELECT id FROM viajes ORDER BY id ASC')->fetchAll();
@@ -269,11 +322,11 @@ function normalizar_codigos_existentes(): void
 
 function asignar_preferencias_demo(): void
 {
-    if (!columna_existe('pasajeros', 'amigo_codigo')) {
+    if (!tabla_existe('companeros')) {
         return;
     }
 
-    $total = (int) db()->query('SELECT COUNT(*) FROM pasajeros WHERE amigo_codigo IS NOT NULL')->fetchColumn();
+    $total = (int) db()->query('SELECT COUNT(*) FROM companeros')->fetchColumn();
 
     if ($total > 0) {
         return;
@@ -292,17 +345,25 @@ function asignar_preferencias_demo(): void
             continue;
         }
 
-        $actualizar = db()->prepare('UPDATE pasajeros SET amigo_codigo = :amigo WHERE id = :id');
+        $insertar = db()->prepare('INSERT IGNORE INTO companeros (pasajero_id, codigo)
+                                   VALUES (:pasajero, :codigo)');
 
+        // De cada cinco estudiantes, el primero viaja con los dos que le siguen.
         foreach ($lista as $indice => $pasajero) {
-            if ($indice % 5 !== 0 || $indice + 1 >= count($lista)) {
+            if ($indice % 5 !== 0) {
                 continue;
             }
 
-            $actualizar->execute([
-                ':amigo' => (string) $lista[$indice + 1]['codigo'],
-                ':id'    => (int) $pasajero['id'],
-            ]);
+            foreach ([1, 2] as $paso) {
+                if (!isset($lista[$indice + $paso])) {
+                    continue;
+                }
+
+                $insertar->execute([
+                    ':pasajero' => (int) $pasajero['id'],
+                    ':codigo'   => normalizar_codigo((string) $lista[$indice + $paso]['codigo']),
+                ]);
+            }
         }
     }
 }
@@ -321,8 +382,7 @@ function aplicar_migraciones(bool $forzar = false): void
         }
 
         if (parametro_int('esquema_version', 0) >= ESQUEMA_VERSION
-            && tabla_existe('asientos')
-            && columna_existe('pasajeros', 'amigo_codigo')
+            && esquema_al_actualizado()
             && esquema_padron_disponible()) {
             $aplicadas = true;
             return;
@@ -332,11 +392,11 @@ function aplicar_migraciones(bool $forzar = false): void
             crear_tabla_asientos();
         }
 
-        agregar_columna_si_falta('pasajeros', 'amigo_codigo', 'amigo_codigo VARCHAR(40) NULL AFTER encargado');
-
         aplicar_esquema_padron();
+        aplicar_esquema_boletos();
 
         normalizar_codigos_existentes();
+        migrar_companeros_de_pasajeros();
         asignar_preferencias_demo();
 
         db()->prepare('INSERT INTO parametros (clave, valor, descripcion) VALUES (:clave, :valor, :descripcion)
@@ -350,6 +410,12 @@ function aplicar_migraciones(bool $forzar = false): void
         refrescar_parametros();
         $aplicadas = true;
     } catch (Throwable $excepcion) {
+        // En la linea de comandos un fallo de migracion no puede quedarse en silencio.
+        if (PHP_SAPI === 'cli') {
+            fwrite(STDERR, 'Migracion fallida: ' . $excepcion->getMessage()
+                . ' (' . basename($excepcion->getFile()) . ':' . $excepcion->getLine() . ')' . PHP_EOL);
+        }
+
         $aplicadas = false;
     }
 }

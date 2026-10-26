@@ -16,10 +16,26 @@ function normalizar_codigo(string $codigo): string
     return strtoupper(trim($codigo));
 }
 
+/**
+ * Convierte la lista de compañeros que viene de la base en códigos limpios.
+ *
+ * @return string[]
+ */
+function descomponer_companeros(?string $lista): array
+{
+    if ($lista === null || trim($lista) === '') {
+        return [];
+    }
+
+    return array_values(array_filter(array_map('normalizar_codigo', explode(',', (string) $lista))));
+}
+
 function filas_de_asientos(int $viajeId): array
 {
     try {
-        $sql = 'SELECT a.id, a.numero, a.rol, a.pasajero_id, p.nombre, p.codigo, p.encargado, p.amigo_codigo
+        $sql = 'SELECT a.id, a.numero, a.rol, a.pasajero_id, p.nombre, p.codigo, p.encargado,
+                       (SELECT GROUP_CONCAT(c.codigo ORDER BY c.id)
+                        FROM companeros c WHERE c.pasajero_id = p.id) AS companeros
                 FROM asientos a
                 INNER JOIN pasajeros p ON p.id = a.pasajero_id
                 WHERE a.viaje_id = :viaje
@@ -66,7 +82,7 @@ function construir_ocupante(array $fila): array
         'nombre'       => $esTutor ? (string) $fila['encargado'] : (string) $fila['nombre'],
         'codigo'       => $esTutor ? null : normalizar_codigo((string) $fila['codigo']),
         'encargado'    => $esTutor ? null : ($fila['encargado'] ?: null),
-        'amigo_codigo' => $fila['amigo_codigo'] ? normalizar_codigo((string) $fila['amigo_codigo']) : null,
+        'companeros'   => $esTutor ? [] : descomponer_companeros($fila['companeros'] ?? null),
         'acompanado_de' => $esTutor ? (string) $fila['nombre'] : null,
     ];
 }
@@ -135,46 +151,83 @@ function construir_slots(int $viajeId, int $lugares, int $pasajeroId, string $ro
     return [$slots, $mover, $tutor];
 }
 
+/**
+ * Une en grupos a todos los que pidieron sentarse juntos.
+ *
+ * Un estudiante puede declarar varios compañeros (el grupito completo, por
+ * ejemplo 2B03 con 2B07, 2B08 y 2B12), así que el enlace es de ida y vuelta y
+ * se resuelve transitivamente: si 2B03 nombra a 2B07 y 2B07 nombra a 2B08,
+ * los tres terminan en el mismo grupo. Los que no declaran a nadie quedan en
+ * un grupo de uno solo.
+ *
+ * @param array<int, array{id:int|string, codigo:string, companeros?:string[]}> $pasajeros
+ */
 function grupos_de_aboarding(array $pasajeros): array
 {
     $porCodigo = [];
+    $porId = [];
+    $posicion = [];
+    $vecinos = [];
 
-    foreach ($pasajeros as $pasajero) {
-        $porCodigo[normalizar_codigo($pasajero['codigo'])] = $pasajero;
+    foreach ($pasajeros as $indice => $pasajero) {
+        $id = (int) $pasajero['id'];
+        $porId[$id] = $pasajero;
+        $posicion[$id] = $indice;
+        $porCodigo[normalizar_codigo((string) $pasajero['codigo'])] = $id;
+    }
+
+    foreach ($porId as $id => $pasajero) {
+        $codigos = $pasajero['companeros'] ?? [];
+
+        foreach ($codigos as $codigo) {
+            $vecino = $porCodigo[normalizar_codigo((string) $codigo)] ?? null;
+
+            if ($vecino === null || $vecino === $id) {
+                continue;
+            }
+
+            $vecinos[$id][$vecino] = true;
+            $vecinos[$vecino][$id] = true;
+        }
     }
 
     $grupos = [];
     $usados = [];
 
-    foreach ($pasajeros as $indice => $pasajero) {
-        if (isset($usados[$pasajero['id']])) {
+    foreach ($porId as $id => $pasajero) {
+        if (isset($usados[$id])) {
             continue;
         }
 
-        $usados[$pasajero['id']] = true;
-        $miembros = [$pasajero['id']];
+        $usados[$id] = true;
+        $cola = [$id];
+        $miembros = [$id];
         $prioritario = false;
-        $amigo = null;
 
-        $codigoAmigo = $pasajero['amigo_codigo'] ? normalizar_codigo((string) $pasajero['amigo_codigo']) : '';
+        while ($cola !== []) {
+            $actual = array_pop($cola);
 
-        if ($codigoAmigo !== '' && isset($porCodigo[$codigoAmigo])) {
-            $candidato = $porCodigo[$codigoAmigo];
+            foreach (array_keys($vecinos[$actual] ?? []) as $vecino) {
+                if (isset($usados[$vecino])) {
+                    continue;
+                }
 
-            if (!isset($usados[$candidato['id']])) {
-                $usados[$candidato['id']] = true;
-                $miembros[] = $candidato['id'];
+                $usados[$vecino] = true;
+                $miembros[] = $vecino;
                 $prioritario = true;
-                $amigo = $candidato;
+                $cola[] = $vecino;
             }
         }
+
+        // Dentro del grupo mantiene el orden en que se inscribieron.
+        usort($miembros, static function (int $a, int $b) use ($posicion): int {
+            return $posicion[$a] <=> $posicion[$b];
+        });
 
         $grupos[] = [
             'miembros'     => $miembros,
             'prioritario'  => $prioritario,
-            'indice'       => $indice,
-            'amigo'        => $amigo,
-            'pasajeros'    => $pasajeros,
+            'indice'       => $posicion[$id],
         ];
     }
 
@@ -336,7 +389,7 @@ function incorporar_pasajero(int $viajeId, int $pasajeroId): void
         return;
     }
 
-    $pasajero = db()->prepare('SELECT id, nombre, codigo, encargado, amigo_codigo FROM pasajeros WHERE id = :id');
+    $pasajero = db()->prepare('SELECT id, nombre, codigo, encargado FROM pasajeros WHERE id = :id');
     $pasajero->execute([':id' => $pasajeroId]);
     $datos = $pasajero->fetch();
 
@@ -352,12 +405,16 @@ function incorporar_pasajero(int $viajeId, int $pasajeroId): void
         : null;
 
     $posicion = null;
-    $codigoAmigo = !empty($datos['amigo_codigo']) ? normalizar_codigo((string) $datos['amigo_codigo']) : '';
+    $companeros = companeros_de_pasajero($pasajeroId);
 
-    if ($codigoAmigo !== '') {
+    // Si alguno de los compañeros declarados ya está viajando, el nuevo se sienta
+    // a su lado en lugar de en el primer hueco libre.
+    if ($companeros !== []) {
+        $codigosBuscados = array_flip($companeros);
+
         foreach ($slots as $numero => $ocupante) {
             if ($ocupante !== null && $ocupante['rol'] === ROL_ESTUDIANTE
-                && normalizar_codigo((string) $ocupante['codigo']) === $codigoAmigo) {
+                && isset($codigosBuscados[normalizar_codigo((string) $ocupante['codigo'])])) {
                 $posicion = max(1, $numero);
                 break;
             }
@@ -397,12 +454,12 @@ function incorporar_pasajero(int $viajeId, int $pasajeroId): void
         }
     }
 
-    $slots[$posicion] = $nuevo + ['numero' => $posicion, 'codigo' => $datos['codigo'], 'encargado' => $datos['encargado'], 'amigo_codigo' => null];
+    $slots[$posicion] = $nuevo + ['numero' => $posicion, 'codigo' => $datos['codigo'], 'encargado' => $datos['encargado']];
 
     if ($tutor !== null) {
         for ($i = $posicion + 1; $i <= $lugares; $i++) {
             if ($slots[$i] === null) {
-                $slots[$i] = $tutor + ['numero' => $i, 'codigo' => $datos['codigo'], 'encargado' => $datos['encargado'], 'amigo_codigo' => null];
+                $slots[$i] = $tutor + ['numero' => $i, 'codigo' => $datos['codigo'], 'encargado' => $datos['encargado']];
                 break;
             }
         }

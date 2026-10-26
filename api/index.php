@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/bootstrap.php';
 
+/** Códigos de compañeros de viaje que puede declarar un estudiante. */
+const MAX_COMPANEROS = 10;
+
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 
@@ -102,6 +105,74 @@ function lista_de_ids(mixed $valores): array
     }
 
     return array_values(array_unique($ids));
+}
+
+/**
+ * Códigos de compañeros de viaje enviados por el cliente: limpios, sin repetidos
+ * y en el orden en que se escribieron.
+ *
+ * @return string[]
+ */
+function lista_de_codigos(mixed $valores): array
+{
+    if (!is_array($valores)) {
+        return [];
+    }
+
+    $codigos = [];
+
+    foreach ($valores as $valor) {
+        $codigo = normalizar_codigo((string) $valor);
+
+        if ($codigo === '' || in_array($codigo, $codigos, true)) {
+            continue;
+        }
+
+        $codigos[] = $codigo;
+    }
+
+    return $codigos;
+}
+
+/**
+ * Códigos de compañeros validados: cada uno con su formato y sin repetir al
+ * propio estudiante.
+ *
+ * @return string[]
+ */
+function companeros_validados(mixed $valores, string $codigoPropio): array
+{
+    $codigos = lista_de_codigos($valores);
+    $propio = normalizar_codigo($codigoPropio);
+    $validos = [];
+
+    foreach ($codigos as $codigo) {
+        if ($codigo === $propio) {
+            continue;
+        }
+
+        if (!formato_codigo_valido($codigo)) {
+            responder_error(
+                'codigo_invalido',
+                'El compañero ' . $codigo . ' no tiene un código válido.',
+                422,
+                ['formato' => 'Año (2 dígitos), sección (letra) y número de lista (2 dígitos). Ejemplo: 2B03']
+            );
+        }
+
+        $validos[] = $codigo;
+    }
+
+    if (count($validos) > MAX_COMPANEROS) {
+        responder_error(
+            'companeros_excesivos',
+            'Un estudiante puede declarar como máximo ' . MAX_COMPANEROS . ' compañeros de viaje.',
+            422,
+            ['limite' => MAX_COMPANEROS]
+        );
+    }
+
+    return $validos;
 }
 
 /**
@@ -376,6 +447,9 @@ try {
     $datos     = cuerpo_entrante();
     $metodo    = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
+    // Cierra los viajes cuyo regreso estimado ya pasó y tenían los boletos cerrados.
+    finalizar_viajes_vencidos();
+
     switch ($recurso) {
         case 'panel':
             $viajes = etiquetar_buses(viajes_ordenados_por_fecha());
@@ -487,6 +561,22 @@ try {
                 ]);
 
                 responder_ok(detalle_viaje($id), ['mensaje' => 'Viaje actualizado.']);
+            }
+
+            if ($metodo === 'POST' && $accion === 'cerrar_boletos') {
+                $detalle = detalle_viaje($id);
+
+                if ($detalle === null) {
+                    responder_error('no_encontrado', 'El viaje solicitado no existe.', 404);
+                }
+
+                if (!$detalle['boletos_cerrados']) {
+                    cerrar_boletos_de_salida($id);
+                }
+
+                responder_ok(detalle_viaje($id), [
+                    'mensaje' => 'Los boletos quedaron cerrados: ya no se pueden inscribir más estudiantes.',
+                ]);
             }
 
             if ($metodo === 'POST' && $accion === 'estado') {
@@ -662,7 +752,6 @@ try {
                 $nombre    = texto($datos, 'nombre');
                 $codigo    = texto($datos, 'codigo');
                 $encargado = texto($datos, 'encargado');
-                $amigo     = texto($datos, 'amigo_codigo');
                 $forzar    = !empty($datos['forzar']);
                 $desborde  = texto($datos, 'desborde', '');
                 $viajeDestino = (int) ($datos['viaje_destino'] ?? 0);
@@ -671,8 +760,8 @@ try {
                     responder_error('viaje_requerido', 'El viaje del pasajero no fue indicado.');
                 }
 
-                if ($nombre === '' || $codigo === '') {
-                    responder_error('datos_incompletos', 'El nombre y el código del estudiante son obligatorios.');
+                if ($codigo === '') {
+                    responder_error('datos_incompletos', 'El código del estudiante es obligatorio.');
                 }
 
                 if (!formato_codigo_valido($codigo)) {
@@ -684,10 +773,37 @@ try {
                     );
                 }
 
+                // Solo con el código basta: el nombre lo resuelve el padrón del instituto.
+                $alumno = alumno_por_codigo($codigo);
+
+                if ($alumno !== null && $nombre === '') {
+                    $nombre = (string) $alumno['nombre'];
+                }
+
+                if ($nombre === '') {
+                    responder_error(
+                        'datos_incompletos',
+                        'Ese código no está en el padrón: falta el nombre del estudiante.',
+                        422,
+                        ['codigo' => normalizar_codigo($codigo)]
+                    );
+                }
+
+                $companeros = companeros_validados($datos['companeros'] ?? [], $codigo);
+                $alumnoId = $alumno !== null ? (int) $alumno['id'] : null;
+
                 $detalle = detalle_viaje($viajeId);
 
                 if ($detalle === null) {
                     responder_error('no_encontrado', 'El viaje solicitado no existe.', 404);
+                }
+
+                if (!empty($detalle['boletos_cerrados'])) {
+                    responder_error(
+                        'boletos_cerrados',
+                        'Los boletos de este viaje ya están cerrados: no se pueden inscribir más estudiantes.',
+                        409
+                    );
                 }
 
                 $personas = $encargado !== '' ? 2 : 1;
@@ -699,6 +815,14 @@ try {
 
                     if ($destino === null) {
                         responder_error('no_encontrado', 'El bus de destino no existe.', 404);
+                    }
+
+                    if (!empty($destino['boletos_cerrados'])) {
+                        responder_error(
+                            'boletos_cerrados',
+                            'Los boletos del bus de destino ya están cerrados: no se pueden inscribir más estudiantes.',
+                            409
+                        );
                     }
 
                     if (!$forzar && $destino['ocupados'] + $personas > $destino['capacidad_bus']) {
@@ -742,17 +866,22 @@ try {
                     $viajeInscripcion = crear_bus_hermano($viajeId);
                 }
 
-                $sentencia = db()->prepare('INSERT INTO pasajeros (viaje_id, nombre, codigo, encargado, amigo_codigo)
-                                            VALUES (:viaje, :nombre, :codigo, :encargado, :amigo)');
+                $sentencia = db()->prepare('INSERT INTO pasajeros (viaje_id, nombre, codigo, encargado, alumno_id)
+                                            VALUES (:viaje, :nombre, :codigo, :encargado, :alumno)');
                 $sentencia->execute([
                     ':viaje'     => $viajeInscripcion,
                     ':nombre'    => $nombre,
                     ':codigo'    => normalizar_codigo($codigo),
                     ':encargado' => $encargado !== '' ? $encargado : null,
-                    ':amigo'     => $amigo !== '' ? normalizar_codigo($amigo) : null,
+                    ':alumno'    => $alumnoId,
                 ]);
 
                 $pasajeroId = (int) db()->lastInsertId();
+
+                if ($companeros !== []) {
+                    guardar_companeros($pasajeroId, $companeros);
+                }
+
                 incorporar_pasajero($viajeInscripcion, $pasajeroId);
 
                 $inscripcion = detalle_viaje($viajeInscripcion);
@@ -878,6 +1007,25 @@ try {
                     );
                 }
 
+                // El nombre puede quedarse vacío: el padrón lo resuelve con el código.
+                $alumno = alumno_por_codigo($codigoNuevo);
+                $nombreNuevo = texto($datos, 'nombre');
+
+                if ($alumno !== null && $nombreNuevo === '') {
+                    $nombreNuevo = (string) $alumno['nombre'];
+                }
+
+                if ($nombreNuevo === '') {
+                    responder_error(
+                        'datos_incompletos',
+                        'Ese código no está en el padrón: falta el nombre del estudiante.',
+                        422,
+                        ['codigo' => normalizar_codigo($codigoNuevo)]
+                    );
+                }
+
+                $companeros = companeros_validados($datos['companeros'] ?? [], $codigoNuevo);
+
                 $desborde = texto($datos, 'desborde', '');
                 $viajeActual = (int) $registro['viaje_id'];
                 $viajeDestino = $viajeActual;
@@ -897,15 +1045,17 @@ try {
                 }
 
                 $sentencia = db()->prepare('UPDATE pasajeros
-                                            SET nombre = :nombre, codigo = :codigo, encargado = :encargado, amigo_codigo = :amigo
+                                            SET nombre = :nombre, codigo = :codigo, encargado = :encargado, alumno_id = :alumno
                                             WHERE id = :id');
                 $sentencia->execute([
-                    ':nombre'    => texto($datos, 'nombre'),
+                    ':nombre'    => $nombreNuevo,
                     ':codigo'    => normalizar_codigo($codigoNuevo),
                     ':encargado' => $encargadoNuevo !== '' ? $encargadoNuevo : null,
-                    ':amigo'     => texto($datos, 'amigo_codigo') !== '' ? normalizar_codigo(texto($datos, 'amigo_codigo')) : null,
+                    ':alumno'    => $alumno !== null ? (int) $alumno['id'] : null,
                     ':id'        => $id,
                 ]);
+
+                guardar_companeros($id, $companeros);
 
                 if ($viajeDestino !== $viajeActual) {
                     trasladar_pasajero($id, $viajeDestino);

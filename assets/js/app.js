@@ -21,7 +21,8 @@
         busquedaPaseos: '',
         viajeModalId: null,
         viajeModal: null,
-        formPasajero: { nombre: '', codigo: '', encargado: '', amigo: '', conEncargado: false },
+        formPasajero: formPasajeroVacio(),
+        temporizadorSugerencias: null,
         advertenciaCodigo: null,
         desborde: null,
         salida: null,
@@ -37,10 +38,12 @@
         errorPadron: null,
         profesores: null,
         busquedaProfesores: '',
-        errorProfesores: null
+        errorProfesores: null,
+        selectorProfesor: null
     };
 
     var asientoArrastrado = null;
+    var viajesAutoCerrados = {};
 
     var $ = function (selector, contexto) {
         return (contexto || document).querySelector(selector);
@@ -62,6 +65,13 @@
         return '$' + numero.toLocaleString('es-SV', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
+    /**
+     * Locale para las fechas: cambia con el idioma elegido en la cabecera.
+     */
+    function localeFechas() {
+        return document.documentElement.lang === 'en' ? 'en-US' : 'es-SV';
+    }
+
     function fechaCorta(iso) {
         if (!iso) {
             return '—';
@@ -78,7 +88,7 @@
         if (isNaN(fecha.getTime())) {
             return fechaCorta(iso);
         }
-        return fecha.toLocaleDateString('es-SV', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        return fecha.toLocaleDateString(localeFechas(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     }
 
     function hoyIso() {
@@ -196,6 +206,7 @@
     }
 
     function cerrarModal() {
+        cerrarSelector();
         $('#capa-modal').hidden = true;
         $('#modal-cuerpo').innerHTML = '';
         $('#modal-pie').innerHTML = '';
@@ -207,6 +218,147 @@
         estado.desborde = null;
         estado.salida = null;
         document.body.style.overflow = '';
+    }
+
+    /**
+     * Ventana secundaria: se abre encima de un formulario para elegir un registro
+     * de una lista larga (profesores del catálogo, alumnos del padrón).
+     */
+    function abrirSelector(titulo, subtitulo, contenido, pie) {
+        $('#seleccion-sobretitulo').textContent = subtitulo || '';
+        $('#seleccion-titulo').textContent = titulo;
+        $('#seleccion-cuerpo').innerHTML = contenido;
+        $('#seleccion-pie').innerHTML = pie || '';
+        $('#capa-seleccion').hidden = false;
+        document.body.style.overflow = 'hidden';
+    }
+
+    function cerrarSelector() {
+        if ($('#capa-seleccion').hidden) {
+            return;
+        }
+
+        $('#capa-seleccion').hidden = true;
+        $('#seleccion-cuerpo').innerHTML = '';
+        $('#seleccion-pie').innerHTML = '';
+        $('#seleccion-titulo').textContent = '';
+        $('#seleccion-sobretitulo').textContent = '';
+        estado.selectorProfesor = null;
+
+        if ($('#capa-modal').hidden) {
+            document.body.style.overflow = '';
+        }
+    }
+
+    function selectorAbierto() {
+        return !$('#capa-seleccion').hidden;
+    }
+
+    /**
+     * Catálogo de profesores para el paseo: activos, más el que ya está vinculado
+     * aunque hoy esté inactivo, para no perderlo sin querer.
+     */
+    function profesoresDelSelector() {
+        var contexto = estado.selectorProfesor || {};
+        var busqueda = (contexto.busqueda || '').toLowerCase().trim();
+        var actual = contexto.actual || 0;
+
+        return (estado.profesores || []).filter(function (profesor) {
+            if (profesor.activo !== 1 && profesor.id !== actual) {
+                return false;
+            }
+
+            if (!busqueda) {
+                return true;
+            }
+
+            var heno = (profesor.nombre + ' ' + (profesor.especialidad_cargo || '') + ' ' + (profesor.codigo || '')).toLowerCase();
+            return heno.indexOf(busqueda) !== -1;
+        });
+    }
+
+    function pintarListaProfesores() {
+        var contenedor = $('#lista-profesores');
+
+        if (!contenedor) {
+            return;
+        }
+
+        var actual = (estado.selectorProfesor || {}).actual || 0;
+        var lista = profesoresDelSelector();
+
+        if (!lista.length) {
+            contenedor.innerHTML = '<p class="fila-seleccion-vacia">Ningún docente coincide con la búsqueda.</p>';
+            return;
+        }
+
+        contenedor.innerHTML = '<ul class="lista-seleccion" role="listbox" aria-label="Profesores">' +
+            lista.map(function (profesor) {
+                var cargo = profesor.especialidad_cargo ? profesor.especialidad_cargo : 'Sin cargo registrado';
+
+                return '<li><button type="button" class="fila-seleccion" role="option" aria-selected="' +
+                    (profesor.id === actual ? 'true' : 'false') + '"' +
+                    ' data-accion="seleccionar-profesor" data-id="' + profesor.id + '"' +
+                    ' data-nombre="' + escapar(profesor.nombre) + '" data-meta="' + escapar(cargo) + '">' +
+                    '<span class="inicial-persona">' + escapar(iniciales(profesor.nombre)) + '</span>' +
+                    '<span class="fila-seleccion-datos">' +
+                    '<span class="fila-seleccion-nombre">' + escapar(profesor.nombre) + '</span>' +
+                    '<span class="fila-seleccion-meta">' + escapar(cargo) +
+                    (profesor.activo !== 1 ? ' · Inactivo' : '') + '</span>' +
+                    '</span></button></li>';
+            }).join('') + '</ul>';
+    }
+
+    function abrirSelectorProfesor() {
+        var valor = $('#paseo-profesor-id');
+        var texto = $('#paseo-profesor-valor');
+
+        estado.selectorProfesor = {
+            busqueda: '',
+            actual: valor ? Number(valor.value || 0) : 0,
+            nombre: texto ? texto.textContent : ''
+        };
+
+        var contenido = '<div class="seleccion-buscador"><div class="buscador">' + icono(ICONOS.lupa) +
+            '<input type="search" class="control" id="busqueda-profesor" autocomplete="off"' +
+            ' placeholder="Buscar por nombre, cargo o código"></div></div>' +
+            '<div id="lista-profesores"></div>';
+
+        var pie = '<span class="texto-apagado nota-pequena">Elige un docente de la lista</span>' +
+            '<div class="grupo-botones">' +
+            '<button type="button" class="boton boton-borde" data-accion="cerrar-selector">Cancelar</button></div>';
+
+        abrirSelector('Profesor a cargo', 'Catálogo de profesores', contenido, pie);
+        pintarListaProfesores();
+
+        var campo = $('#busqueda-profesor');
+
+        if (campo) {
+            campo.focus();
+        }
+    }
+
+    function elegirProfesor(id, nombre, meta) {
+        var campoId = $('#paseo-profesor-id');
+        var campoTexto = $('#paseo-profesor-encargado');
+        var campoValor = $('#paseo-profesor-valor');
+
+        if (campoId) {
+            campoId.value = id ? String(id) : '';
+        }
+
+        // Con el profesor elegido el nombre sale del catálogo, así que el texto
+        // suelto que pudiera arrastrar el paseo deja de tener sentido.
+        if (campoTexto) {
+            campoTexto.value = '';
+        }
+
+        if (campoValor) {
+            campoValor.textContent = id ? nombre + (meta ? ' · ' + meta : '') : 'Sin profesor asignado';
+            campoValor.classList.toggle('sin-valor', !id);
+        }
+
+        cerrarSelector();
     }
 
     function cargarPanel(mensajeCarga) {
@@ -458,6 +610,28 @@
         $('#temporizador-valor').textContent = formatearCuentaAtras(Math.abs(diferencia));
     }
 
+    /**
+     * Si el viaje ya cerró boletos y su hora estimada de regreso pasó, se pide
+     * al servidor que lo finalice (lo hace en la siguiente carga del panel).
+     * Solo se dispara una vez por viaje para no repetir peticiones.
+     */
+    function revisarCierreAutomatico() {
+        var viaje = estado.viajeDetalle;
+
+        if (!viaje || !viaje.boletos_cerrados || viaje.estado === 'finalizado' || !viaje.fecha) {
+            return;
+        }
+
+        var limite = new Date(viaje.fecha + 'T' + (viaje.hora_retorno || '23:59') + ':00');
+
+        if (isNaN(limite.getTime()) || limite.getTime() > Date.now() || viajesAutoCerrados[viaje.id]) {
+            return;
+        }
+
+        viajesAutoCerrados[viaje.id] = true;
+        refrescarFondo();
+    }
+
     function marcarFechaEnVivo() {
         var campo = $('#fecha-hoy');
 
@@ -465,7 +639,7 @@
             return;
         }
 
-        var texto = new Date().toLocaleDateString('es-SV', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        var texto = new Date().toLocaleDateString(localeFechas(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
         if (campo.textContent !== texto) {
             campo.textContent = texto;
@@ -739,18 +913,30 @@
     }
 
     function cierreViaje(viaje) {
-        if (viaje.estado !== 'finalizado') {
+        if (viaje.estado === 'finalizado') {
             return '<div class="viaje-destacado-cierre">' +
-                '<button type="button" class="boton boton-borde" data-accion="cambiar-estado" data-estado="finalizado" data-id="' + viaje.id + '">' +
-                icono(ICONOS.cheque) + 'Marcar viaje como finalizado</button>' +
-                '<span class="nota-pequena texto-apagado">Al finalizar aparecerá aquí el botón para generar el listado.</span>' +
+                '<button type="button" class="boton boton-primario" data-accion="generar-listado-salida" data-id="' + viaje.id + '">' +
+                icono(ICONOS.lista) + 'Ver listado de estudiantes</button>' +
+                '<span class="nota-pequena texto-apagado">Viaje finalizado · el listado queda disponible con todos los buses y pasajeros.</span>' +
+                '</div>';
+        }
+
+        if (!viaje.boletos_cerrados) {
+            return '<div class="viaje-destacado-cierre">' +
+                '<button type="button" class="boton boton-borde" data-accion="cerrar-boletos" data-id="' + viaje.id + '">' +
+                icono(ICONOS.cheque) + 'Cerrar boletos</button>' +
+                '<span class="nota-pequena texto-apagado">Al presionar este botón, ya no podrán ingresar más alumnos, ' +
+                'a su vez, se podrá ver el listado de estudiantes.</span>' +
                 '</div>';
         }
 
         return '<div class="viaje-destacado-cierre">' +
             '<button type="button" class="boton boton-primario" data-accion="generar-listado-salida" data-id="' + viaje.id + '">' +
-            icono(ICONOS.lista) + 'Generar listado</button>' +
-            '<span class="nota-pequena texto-apagado">Viaje finalizado · todos los buses y pasajeros ordenados según su pago.</span>' +
+            icono(ICONOS.lista) + 'Ver listado de estudiantes</button>' +
+            '<button type="button" class="boton boton-borde" data-accion="cambiar-estado" data-estado="finalizado" data-id="' + viaje.id + '">' +
+            icono(ICONOS.cheque) + 'Finalizar viaje ahora</button>' +
+            '<span class="nota-pequena texto-apagado">Boletos cerrados. El viaje se finalizará automáticamente a las ' +
+            escapar(viaje.hora_retorno || '23:59') + '; si termina antes de lo previsto, puedes finalizarlo ahora.</span>' +
             '</div>';
     }
 
@@ -774,12 +960,18 @@
                 '<div class="viaje-destacado-cabecera">' +
                 '<div>' +
                 '<div class="viaje-destacado-etiquetas">' +
-                '<span class="metrica-etiqueta">Viaje actual</span>' + estadoPastilla(viaje.estado) + '</div>' +
+                '<span class="metrica-etiqueta">Viaje actual</span>' + estadoPastilla(viaje.estado) +
+                (viaje.boletos_cerrados && viaje.estado !== 'finalizado'
+                    ? '<span class="pastilla atencion">Boletos cerrados</span>'
+                    : '') + '</div>' +
                 '<h2>' + escapar(viaje.nombre) + '</h2>' +
                 '<p class="destino">' + escapar(viaje.destino) + '</p>' +
                 '</div>' +
                 '<div class="viaje-destacado-acciones">' +
                 '<button type="button" class="boton boton-primario" data-accion="gestionar-viaje" data-id="' + viaje.id + '">Gestionar viaje</button>' +
+                (viaje.boletos_cerrados
+                    ? ''
+                    : '<button type="button" class="boton boton-borde" data-accion="generar-listado-salida" data-id="' + viaje.id + '">' + icono(ICONOS.lista) + 'Ver listado</button>') +
                 '<button type="button" class="boton boton-borde" data-accion="abrir-redistribucion" data-id="' + viaje.id + '">Redistribuir</button>' +
                 '<button type="button" class="boton boton-borde" data-accion="ver-viaje" data-id="' + viaje.id + '">Ver detalle</button>' +
                 '</div>' +
@@ -813,7 +1005,7 @@
                 '<td><span class="orden-inscripcion">' + pasajero.orden + '</span></td>' +
                 '<td><span class="celda-principal">' + escapar(pasajero.nombre) + '</span>' +
                 (pasajero.duplicado ? '<span class="pastilla error sin-punto linea">Código repetido</span>' : '') +
-                (pasajero.amigo_codigo ? '<span class="celda-secundaria">Se sienta con ' + escapar(pasajero.amigo_codigo) + '</span>' : '') + '</td>' +
+                (pasajero.companeros && pasajero.companeros.length ? '<span class="celda-secundaria">Se sienta con ' + escapar(pasajero.companeros.join(', ')) + '</span>' : '') + '</td>' +
                 '<td class="numero celda-codigo">' + escapar(pasajero.codigo) + '</td>' +
                 '<td>' + (pasajero.encargado ? escapar(pasajero.encargado) : '<span class="sin-dato">Sin encargado</span>') + '</td>' +
                 '<td class="columna-media numero">' + dinero(pasajero.costo) +
@@ -960,7 +1152,7 @@
             return fechaCorta(iso);
         }
 
-        return fecha.toLocaleDateString('es-SV', { day: 'numeric', month: 'long', year: 'numeric' });
+        return fecha.toLocaleDateString(localeFechas(), { day: 'numeric', month: 'long', year: 'numeric' });
     }
 
     function porcentaje(valor) {
@@ -1687,7 +1879,7 @@
     function abrirModalViaje(viajeId, enfocarAlta) {
         estado.viajeModalId = viajeId;
         estado.enfocarAlta = Boolean(enfocarAlta);
-        estado.formPasajero = { nombre: '', codigo: '', encargado: '', amigo: '', conEncargado: false };
+        estado.formPasajero = formPasajeroVacio();
         estado.advertenciaCodigo = null;
 
         apiGet('viajes', { id: viajeId }).then(function (respuesta) {
@@ -1696,6 +1888,284 @@
         }).catch(function (error) {
             aviso('No se pudo abrir el viaje', error.message, 'error');
         });
+    }
+
+    /**
+     * Estado vacío del formulario de alta de pasajeros.
+     *
+     * Con el código del estudiante ya no hace falta escribir el nombre: el
+     * padrón lo resuelve (en el navegador y también en el servidor), y los
+     * compañeros de viaje se guardan como una lista de códigos.
+     */
+    function formPasajeroVacio() {
+        return {
+            nombre: '',
+            codigo: '',
+            encargado: '',
+            companeros: [],
+            alumnoId: null,
+            codigoAlumno: '',
+            nombreAutomatico: false,
+            conEncargado: false
+        };
+    }
+
+    function normalizarCodigoCliente(valor) {
+        return String(valor === null || valor === undefined ? '' : valor).trim().toUpperCase();
+    }
+
+    function cerrarSugerencias() {
+        // También se cancela lo que esté pendiente: un resultado que llegue
+        // tarde no debe abrir la lista de nuevo.
+        if (estado.temporizadorSugerencias) {
+            window.clearTimeout(estado.temporizadorSugerencias);
+            estado.temporizadorSugerencias = null;
+        }
+
+        ['sugerencias-pasajero', 'sugerencias-companero'].forEach(function (id) {
+            var contenedor = document.getElementById(id);
+
+            if (contenedor) {
+                contenedor.hidden = true;
+                contenedor.innerHTML = '';
+            }
+        });
+    }
+
+    /**
+     * Busca en el padrón por código o nombre; se usa para autocompletar el
+     * alta de pasajeros sin cargar la lista completa de alumnos.
+     */
+    function buscarEnPadron(texto) {
+        return apiGet('alumnos', { q: texto, limite: 8 }).then(function (respuesta) {
+            return (respuesta.datos && respuesta.datos.alumnos) || [];
+        }).catch(function () {
+            return [];
+        });
+    }
+
+    function pintarSugerenciasAlumnos(tipo, alumnos) {
+        var contenedor = document.getElementById(tipo === 'companero' ? 'sugerencias-companero' : 'sugerencias-pasajero');
+
+        if (!contenedor) {
+            return;
+        }
+
+        if (!alumnos.length) {
+            contenedor.hidden = true;
+            contenedor.innerHTML = '';
+            return;
+        }
+
+        contenedor.innerHTML = alumnos.map(function (alumno) {
+            return '<button type="button" class="sugerencia" role="option" data-accion="elegir-sugerencia"' +
+                ' data-tipo="' + tipo + '" data-id="' + alumno.id + '"' +
+                ' data-codigo="' + escapar(alumno.codigo) + '" data-nombre="' + escapar(alumno.nombre) + '"' +
+                ' data-encargado="' + escapar(alumno.encargado || '') + '"' +
+                ' data-seccion="' + escapar(alumno.seccion || '') + '">' +
+                '<span class="sugerencia-codigo">' + escapar(alumno.codigo) + '</span>' +
+                '<span class="sugerencia-datos"><strong>' + escapar(alumno.nombre) + '</strong>' +
+                '<small>' + escapar(alumno.seccion || 'Sin sección') + '</small></span></button>';
+        }).join('');
+
+        contenedor.hidden = false;
+    }
+
+    /**
+     * Escribe un resultado del padrón en el formulario: código y nombre quedan
+     * listos y el encargado llega solo si el alumno viaja acompañado.
+     */
+    function elegirAlumnoSugerido(datos) {
+        estado.formPasajero.alumnoId = Number(datos.id) || null;
+        estado.formPasajero.codigoAlumno = datos.codigo;
+        estado.formPasajero.codigo = datos.codigo;
+        estado.formPasajero.nombre = datos.nombre;
+        estado.formPasajero.nombreAutomatico = true;
+
+        var codigo = $('#pasajero-codigo');
+        var nombre = $('#pasajero-nombre');
+        var alumno = $('#pasajero-alumno');
+        var ayuda = $('#ayuda-pasajero');
+
+        if (codigo) {
+            codigo.value = datos.codigo;
+            validarFormatoCodigo(codigo);
+        }
+
+        if (nombre) {
+            nombre.value = datos.nombre;
+        }
+
+        if (alumno) {
+            alumno.value = datos.id;
+        }
+
+        if (ayuda) {
+            ayuda.innerHTML = 'Del padrón · <strong>' + escapar(datos.nombre) + '</strong>' +
+                (datos.seccion ? ' · sección ' + escapar(datos.seccion) : '');
+            ayuda.classList.remove('ayuda-error');
+        }
+
+        // El encargado del padrón se trae solo si se activa el "Viaja con encargado".
+        if (datos.encargado) {
+            estado.formPasajero.encargado = datos.encargado;
+            estado.formPasajero.conEncargado = false;
+
+            var campoEncargado = $('#pasajero-encargado');
+            var casilla = $('#pasajero-con-encargado');
+
+            if (campoEncargado) {
+                campoEncargado.value = '';
+            }
+
+            if (casilla) {
+                casilla.checked = false;
+            }
+
+            alternarEncargado(false);
+        }
+
+        cerrarSugerencias();
+    }
+
+    function pintarChipsCompaneros() {
+        var contenedor = $('#chips-companeros');
+
+        if (!contenedor) {
+            return;
+        }
+
+        var codigos = estado.formPasajero.companeros || [];
+
+        contenedor.innerHTML = codigos.map(function (codigo) {
+            return '<span class="chip">' + escapar(codigo) +
+                '<button type="button" class="chip-quitar" data-accion="quitar-companero" data-codigo="' +
+                escapar(codigo) + '" aria-label="Quitar al compañero ' + escapar(codigo) + '">' +
+                icono(ICONOS.cerrar) + '</button></span>';
+        }).join('');
+
+        contenedor.classList.toggle('oculto', codigos.length === 0);
+    }
+
+    /**
+     * Agrega un compañero de viaje al grupo: el formato es el mismo que el del
+     * estudiante y el duplicado simplemente se ignora.
+     */
+    function agregarCompanero(valor) {
+        var codigo = normalizarCodigoCliente(valor);
+
+        if (codigo === '') {
+            return;
+        }
+
+        if (!/^\d{1,2}[A-Za-z]\d{2}$/.test(codigo)) {
+            aviso('Código no válido', 'Usa el formato 2B03: año, sección y número de lista.', 'error');
+            return;
+        }
+
+        if (codigo === normalizarCodigoCliente(estado.formPasajero.codigo)) {
+            aviso('Ese es el propio estudiante', 'Elige otro código para sentarlos juntos.', 'error');
+            return;
+        }
+
+        var lista = estado.formPasajero.companeros || [];
+
+        if (lista.indexOf(codigo) !== -1) {
+            return;
+        }
+
+        lista.push(codigo);
+        estado.formPasajero.companeros = lista;
+        pintarChipsCompaneros();
+
+        var campo = $('#pasajero-companero');
+
+        if (campo) {
+            campo.value = '';
+            campo.focus();
+        }
+
+        cerrarSugerencias();
+    }
+
+    function quitarCompanero(codigo) {
+        estado.formPasajero.companeros = (estado.formPasajero.companeros || []).filter(function (item) {
+            return item !== codigo;
+        });
+
+        pintarChipsCompaneros();
+    }
+
+    /**
+     * Retardo antes de consultar el padrón: mientras se escribe no se manda
+     * una petición por cada letra.
+     */
+    function programarSugerencias(tipo, texto) {
+        if (estado.temporizadorSugerencias) {
+            window.clearTimeout(estado.temporizadorSugerencias);
+            estado.temporizadorSugerencias = null;
+        }
+
+        var limpio = String(texto || '').trim();
+
+        if (limpio === '') {
+            cerrarSugerencias();
+            return;
+        }
+
+        estado.temporizadorSugerencias = window.setTimeout(function () {
+            estado.temporizadorSugerencias = null;
+
+            buscarEnPadron(limpio).then(function (alumnos) {
+                var idCampo = tipo === 'companero' ? 'pasajero-companero' : 'pasajero-codigo';
+                var campo = document.getElementById(idCampo);
+
+                // Si el campo cambió mientras viajaba la petición, la respuesta
+                // ya no corresponde y se descarta.
+                if (!campo || campo.value.trim().toUpperCase() !== limpio.toUpperCase()) {
+                    return;
+                }
+
+                pintarSugerenciasAlumnos(tipo, alumnos);
+            });
+        }, 180);
+    }
+
+    /**
+     * Resalta con las flechas la sugerencia activa y, con Enter, la elige.
+     * Devuelve true cuando el teclado fue consumido por la lista.
+     */
+    function moverSugerencia(evento, contenedor) {
+        if (!contenedor || contenedor.hidden || !contenedor.children.length) {
+            return false;
+        }
+
+        var opciones = Array.prototype.slice.call(contenedor.children);
+        var activa = contenedor.querySelector('.activa');
+        var posicion = opciones.indexOf(activa);
+
+        if (evento.key === 'ArrowDown') {
+            posicion = posicion + 1 >= opciones.length ? 0 : posicion + 1;
+        } else if (evento.key === 'ArrowUp') {
+            posicion = posicion <= 0 ? opciones.length - 1 : posicion - 1;
+        } else if (evento.key === 'Enter') {
+            evento.preventDefault();
+            (activa || opciones[0]).click();
+            return true;
+        } else if (evento.key === 'Escape') {
+            cerrarSugerencias();
+            return true;
+        } else {
+            return false;
+        }
+
+        evento.preventDefault();
+        opciones.forEach(function (opcion, indice) {
+            opcion.classList.toggle('activa', indice === posicion);
+        });
+        opciones[posicion].scrollIntoView({ block: 'nearest' });
+
+        return true;
     }
 
     function pintarModalViaje() {
@@ -1728,7 +2198,7 @@
                 '<td><span class="orden-inscripcion">' + pasajero.orden + '</span></td>' +
                 '<td><span class="celda-principal">' + escapar(pasajero.nombre) + '</span>' +
                 (pasajero.duplicado ? '<span class="pastilla error sin-punto linea">Código repetido</span>' : '') +
-                (pasajero.amigo_codigo ? '<span class="celda-secundaria">Se sienta con ' + escapar(pasajero.amigo_codigo) + '</span>' : '') + '</td>' +
+                (pasajero.companeros && pasajero.companeros.length ? '<span class="celda-secundaria">Se sienta con ' + escapar(pasajero.companeros.join(', ')) + '</span>' : '') + '</td>' +
                 '<td class="numero celda-codigo">' + escapar(pasajero.codigo) + '</td>' +
                 '<td>' + (pasajero.encargado ? escapar(pasajero.encargado) : '<span class="sin-dato">Sin encargado</span>') + '</td>' +
                 '<td class="columna-media numero">' + dinero(pasajero.costo) +
@@ -1759,17 +2229,28 @@
             '<div class="columna columna-espaciada">' +
             '<section class="tarjeta"><div class="tarjeta-cabecera"><div><h3>Estudiantes pasajeros</h3><p>' + viaje.pasajeros_lista.length + ' inscritos · ordenados según se agregaron</p></div></div>' +
             '<div class="tarjeta-cuerpo compacto">' + advertencia +
-            '<form class="formulario" id="formulario-pasajero">' +
+            (viaje.boletos_cerrados
+                ? '<div class="alerta alerta-atencion"><strong>Boletos cerrados</strong>' +
+                  '<span>Ya no se pueden inscribir más estudiantes en este viaje. El listado de estudiantes está disponible.</span></div></div>'
+                : '<form class="formulario" id="formulario-pasajero">' +
             '<div class="formulario dos-columnas compacto-campos">' +
-            '<div class="campo"><label class="campo-etiqueta" for="pasajero-nombre">Nombre del estudiante</label>' +
-            '<input type="text" class="control" id="pasajero-nombre" name="nombre" placeholder="Nombre completo" value="' + escapar(estado.formPasajero.nombre) + '"></div>' +
-            '<div class="campo"><label class="campo-etiqueta" for="pasajero-codigo">Código</label>' +
-            '<input type="text" class="control" id="pasajero-codigo" name="codigo" placeholder="Ej. 2B03" maxlength="6" value="' + escapar(estado.formPasajero.codigo) + '">' +
-            '<span class="campo-ayuda">Año, sección y número de lista: 2B03</span></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="pasajero-codigo">Código del estudiante</label>' +
+            '<div class="control-envoltura">' +
+            '<input type="text" class="control" id="pasajero-codigo" name="codigo" placeholder="Ej. 2B03" maxlength="6" autocomplete="off" value="' + escapar(estado.formPasajero.codigo) + '">' +
+            '<div class="autocompletar" id="sugerencias-pasajero" role="listbox" hidden></div>' +
             '</div>' +
-            '<div class="campo"><label class="campo-etiqueta" for="pasajero-amigo">Compañero de viaje (código)</label>' +
-            '<input type="text" class="control" id="pasajero-amigo" name="amigo_codigo" placeholder="Ej. 2B07" maxlength="6" value="' + escapar(estado.formPasajero.amigo) + '">' +
-            '<span class="campo-ayuda">Opcional. Si lo indica, se sienta junto a ese compañero.</span></div>' +
+            '<input type="hidden" id="pasajero-alumno" name="alumno_id" value="' + (estado.formPasajero.alumnoId || '') + '">' +
+            '<span class="campo-ayuda" id="ayuda-pasajero">Con el código basta: el nombre se completa con el padrón.</span></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="pasajero-nombre">Nombre del estudiante</label>' +
+            '<input type="text" class="control" id="pasajero-nombre" name="nombre" placeholder="Se escribe solo si el código no está en el padrón" value="' + escapar(estado.formPasajero.nombre) + '"></div>' +
+            '</div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="pasajero-companero">Compañeros de viaje</label>' +
+            '<div class="chips oculto" id="chips-companeros"></div>' +
+            '<div class="control-envoltura">' +
+            '<input type="text" class="control" id="pasajero-companero" placeholder="Escribe un código: 2B07" maxlength="6" autocomplete="off">' +
+            '<div class="autocompletar" id="sugerencias-companero" role="listbox" hidden></div>' +
+            '</div>' +
+            '<span class="campo-ayuda">Opcional. Agrega todos los códigos del grupito y se les asignan asientos juntos.</span></div>' +
             '<div class="campo campo-casilla"><input type="checkbox" id="pasajero-con-encargado"' + (estado.formPasajero.conEncargado ? ' checked' : '') + '>' +
             '<label for="pasajero-con-encargado">Viaja con encargado</label></div>' +
             '<p class="campo-ayuda' + (estado.formPasajero.conEncargado ? '' : ' oculto') + '" id="aviso-encargado">El encargado ocupa un asiento y suma el costo por persona del paseo.</p>' +
@@ -1777,7 +2258,7 @@
             '<input type="text" class="control" id="pasajero-encargado" name="encargado" placeholder="Nombre del encargado" value="' + escapar(estado.formPasajero.encargado) + '"></div>' +
             '<div class="grupo-botones inicio">' +
             '<button type="submit" class="boton boton-primario">' + icono(ICONOS.mas) + 'Agregar estudiante</button>' +
-            '</div></form></div>' +
+            '</div></form></div>') +
             '<div class="tabla-envoltura tabla-media"><table class="tabla tabla-compacta"><thead><tr>' +
             '<th class="col-orden">Orden</th><th>Estudiante</th><th>Código</th><th>Encargado</th><th class="col-derecha">Costo</th><th class="col-derecha">Pagado</th><th></th>' +
             '</tr></thead><tbody>' + filas + '</tbody></table></div>' +
@@ -1845,15 +2326,30 @@
             '</div>' +
             '</div>';
 
+        var accionesPie;
+
+        if (viaje.estado === 'finalizado') {
+            accionesPie = '<button type="button" class="boton boton-primario" data-accion="generar-listado-salida" data-id="' + viaje.id + '">' +
+                icono(ICONOS.lista) + 'Ver listado de estudiantes</button>' +
+                '<button type="button" class="boton boton-secundario" data-accion="cambiar-estado" data-estado="programado">Reabrir viaje</button>';
+        } else if (viaje.boletos_cerrados) {
+            accionesPie = '<button type="button" class="boton boton-primario" data-accion="generar-listado-salida" data-id="' + viaje.id + '">' +
+                icono(ICONOS.lista) + 'Ver listado de estudiantes</button>' +
+                '<button type="button" class="boton boton-secundario" data-accion="cambiar-estado" data-estado="finalizado">Finalizar viaje ahora</button>';
+        } else {
+            accionesPie = '<button type="button" class="boton boton-secundario" data-accion="cerrar-boletos" data-id="' + viaje.id + '">' +
+                icono(ICONOS.cheque) + 'Cerrar boletos</button>';
+        }
+
         var pie = '<span class="texto-apagado nota-pequena">Orden de inscripción · ' + viaje.pasajeros_lista.length + ' estudiantes</span>' +
             '<div class="grupo-botones">' +
             '<button type="button" class="boton boton-borde" data-accion="cerrar-modal">Cerrar</button>' +
-            (viaje.estado === 'finalizado'
-                ? '<button type="button" class="boton boton-secundario" data-accion="cambiar-estado" data-estado="programado">Reabrir viaje</button>'
-                : '<button type="button" class="boton boton-secundario" data-accion="cambiar-estado" data-estado="finalizado">Marcar como finalizado</button>') +
+            accionesPie +
             '</div>';
 
         modal('Gestionar viaje', viaje.nombre, contenido, pie, true);
+
+        pintarChipsCompaneros();
 
         if (estado.enfocarAlta) {
             estado.enfocarAlta = false;
@@ -1861,10 +2357,10 @@
 
             if (formularioAlta) {
                 formularioAlta.scrollIntoView({ block: 'center' });
-                var nombre = $('#pasajero-nombre');
+                var codigo = $('#pasajero-codigo');
 
-                if (nombre) {
-                    nombre.focus();
+                if (codigo) {
+                    codigo.focus();
                 }
             }
         }
@@ -2156,20 +2652,27 @@
                 '<span>' + escapar(persona.nombre) + '</span></label>';
         }).join('');
 
-        var opcionesProfesor = '<option value="">Selecciona un profesor</option>' + (estado.profesores || []).filter(function (profesor) {
-            return profesor.activo === 1 || (paseo && profesor.id === paseo.profesor_id);
-        }).map(function (profesor) {
-            var elegido = paseo && paseo.profesor_id === profesor.id;
+        // El paseo siempre lleva un profesor a cargo: el nombre sale del catálogo
+        // cuando está vinculado y, si todavía no, se conserva el texto guardado.
+        var profesorId = paseo ? (paseo.profesor_id || 0) : 0;
+        var nombreProfesor = paseo && paseo.profesor_encargado ? paseo.profesor_encargado : '';
+        var cargoProfesor = '';
 
-            return '<option value="' + profesor.id + '"' + (elegido ? ' selected' : '') + '>' +
-                escapar(profesor.nombre) + (profesor.especialidad_cargo ? ' · ' + escapar(profesor.especialidad_cargo) : '') +
-                '</option>';
-        }).join('');
+        if (profesorId) {
+            var registroProfesor = (estado.profesores || []).filter(function (item) {
+                return item.id === profesorId;
+            })[0];
 
-        // Un paseo guardado solo con texto conserva su nombre hasta que se vincule.
-        if (paseo && !paseo.profesor_id && paseo.profesor_encargado) {
-            opcionesProfesor += '<option value="0" selected>' + escapar(paseo.profesor_encargado) + ' · sin vincular</option>';
+            if (registroProfesor) {
+                nombreProfesor = registroProfesor.nombre;
+                cargoProfesor = registroProfesor.especialidad_cargo || '';
+            }
         }
+
+        var vinculado = Boolean(profesorId);
+        var textoProfesor = vinculado
+            ? nombreProfesor + (cargoProfesor ? ' · ' + cargoProfesor : '')
+            : (nombreProfesor ? nombreProfesor + ' · sin vincular' : 'Sin profesor asignado');
 
         var contenido = '<form class="formulario" id="formulario-paseo"' + (paseo ? ' data-id="' + paseo.id + '"' : '') + '>' +
             '<div class="formulario dos-columnas">' +
@@ -2179,9 +2682,18 @@
             '<input type="text" class="control" id="paseo-destino" name="destino" placeholder="Dirección o punto de encuentro" value="' + escapar(paseo ? paseo.destino : '') + '"></div>' +
             '<div class="campo"><label class="campo-etiqueta" for="paseo-costo">Costo por persona</label>' +
             '<input type="number" class="control numero" id="paseo-costo" name="costo_persona" step="0.01" min="0" value="' + (paseo ? paseo.costo_persona : '') + '"></div>' +
-            '<div class="campo"><label class="campo-etiqueta" for="paseo-profesor">Profesor a cargo</label>' +
-            '<select class="control" id="paseo-profesor" name="profesor_id">' + opcionesProfesor + '</select>' +
-            '<input type="hidden" name="profesor_encargado" value="' + escapar(paseo ? paseo.profesor_encargado : '') + '"></div>' +
+            '<div class="campo"><span class="campo-etiqueta">Profesor a cargo</span>' +
+            '<input type="hidden" id="paseo-profesor-id" name="profesor_id" value="' + (profesorId || '') + '">' +
+            '<input type="hidden" id="paseo-profesor-encargado" name="profesor_encargado" value="' +
+            escapar(paseo && !profesorId ? paseo.profesor_encargado : '') + '">' +
+            '<div class="campo-selector">' +
+            '<span class="campo-selector-valor' + (vinculado || nombreProfesor ? '' : ' sin-valor') + '" id="paseo-profesor-valor">' +
+            escapar(textoProfesor) + '</span>' +
+            '<span class="campo-selector-acciones">' +
+            '<button type="button" class="boton boton-borde boton-pequeno" data-accion="elegir-profesor">' +
+            icono(ICONOS.lupa) + (vinculado ? 'Cambiar' : 'Elegir profesor') + '</button>' +
+            '</span></div>' +
+            '<span class="campo-ayuda">Se busca por nombre, cargo o código en el catálogo de docentes.</span></div>' +
             '</div>' +
             '<div class="campo"><label class="campo-etiqueta" for="paseo-descripcion">Descripción</label>' +
             '<textarea class="control" id="paseo-descripcion" name="descripcion" placeholder="Actividades previstas para el paseo">' + escapar(paseo ? paseo.descripcion || '' : '') + '</textarea></div>' +
@@ -2371,7 +2883,8 @@
 
     function validarFormatoCodigo(campo) {
         var valor = campo.value.trim();
-        var ayuda = campo.parentElement ? campo.parentElement.querySelector('.campo-ayuda') : null;
+        var contenedor = campo.closest ? campo.closest('.campo') : campo.parentElement;
+        var ayuda = contenedor ? contenedor.querySelector('.campo-ayuda') : null;
 
         if (!ayuda) {
             return;
@@ -2517,6 +3030,12 @@
     }
 
     function manejarAcciones(evento) {
+        // Un clic fuera de la lista de resultados la cierra.
+        if (evento.target && evento.target.closest
+            && !evento.target.closest('.autocompletar, #pasajero-codigo, #pasajero-companero')) {
+            cerrarSugerencias();
+        }
+
         var disparador = evento.target.closest('[data-accion]');
 
         if (!disparador) {
@@ -2530,6 +3049,42 @@
         switch (accion) {
             case 'recargar':
                 cargarPanel('Actualizando la información de la colecturía');
+                break;
+
+            case 'elegir-profesor':
+                abrirSelectorProfesor();
+                break;
+
+            case 'seleccionar-profesor':
+                elegirProfesor(
+                    Number(id || 0),
+                    disparador.getAttribute('data-nombre') || '',
+                    disparador.getAttribute('data-meta') || ''
+                );
+                break;
+
+            case 'cerrar-selector':
+                cerrarSelector();
+                break;
+
+            case 'elegir-sugerencia':
+                var tipoSugerencia = disparador.getAttribute('data-tipo');
+
+                if (tipoSugerencia === 'companero') {
+                    agregarCompanero(disparador.getAttribute('data-codigo'));
+                } else {
+                    elegirAlumnoSugerido({
+                        id: disparador.getAttribute('data-id'),
+                        codigo: disparador.getAttribute('data-codigo'),
+                        nombre: disparador.getAttribute('data-nombre'),
+                        encargado: disparador.getAttribute('data-encargado'),
+                        seccion: disparador.getAttribute('data-seccion')
+                    });
+                }
+                break;
+
+            case 'quitar-companero':
+                quitarCompanero(disparador.getAttribute('data-codigo'));
                 break;
 
             case 'cambiar-periodo':
@@ -2784,6 +3339,22 @@
                 });
                 break;
 
+            case 'cerrar-boletos':
+                var viajeBoletos = Number(id) || estado.viajeModalId;
+
+                apiPost('viajes', {}, 'cerrar_boletos', { id: viajeBoletos }).then(function (respuesta) {
+                    if (estado.viajeModalId) {
+                        estado.viajeModal = respuesta.datos;
+                        pintarModalViaje();
+                    }
+
+                    aviso('Boletos cerrados', 'Ya no se pueden inscribir más estudiantes. El listado quedó disponible.', 'exito');
+                    refrescarFondo();
+                }).catch(function (error) {
+                    aviso('No se pudieron cerrar los boletos', error.message, 'error');
+                });
+                break;
+
             case 'generar-listado':
                 apiPost('asientos', { viaje_id: estado.viajeDetalle.id }, 'generar').then(function (respuesta) {
                     estado.mapa = respuesta.datos.mapa;
@@ -2842,12 +3413,13 @@
                     nombre: formulario.nombre,
                     codigo: formulario.codigo,
                     encargado: formulario.encargado,
-                    amigo_codigo: formulario.amigo_codigo,
+                    alumno_id: formulario.alumno_id,
+                    companeros: estado.formPasajero.companeros || [],
                     forzar: true
                 }).then(function (respuesta) {
                     estado.viajeModal = respuesta.datos;
                     estado.advertenciaCodigo = null;
-                    estado.formPasajero = { nombre: '', codigo: '', encargado: '', amigo: '', conEncargado: false };
+                    estado.formPasajero = formPasajeroVacio();
                     pintarModalViaje();
                     aviso('Estudiante agregado', 'Se registró con el código repetido.', 'exito');
                 }).catch(function (error) {
@@ -2879,10 +3451,11 @@
                     nombre: pendiente.nombre,
                     codigo: pendiente.codigo,
                     encargado: pendiente.encargado,
-                    amigo_codigo: pendiente.amigo_codigo,
+                    alumno_id: pendiente.alumno_id,
+                    companeros: pendiente.companeros || [],
                     desborde: 'auto'
                 }).then(function (respuesta) {
-                    estado.formPasajero = { nombre: '', codigo: '', encargado: '', amigo: '', conEncargado: false };
+                    estado.formPasajero = formPasajeroVacio();
                     cerrarYVolverAlViaje(viajeOrigen);
                     aviso('Bus adicional creado', respuesta.mensaje || 'El estudiante quedó en el bus nuevo.', 'exito');
                 }).catch(function (error) {
@@ -2907,10 +3480,11 @@
                     nombre: pendienteMovimiento.nombre,
                     codigo: pendienteMovimiento.codigo,
                     encargado: pendienteMovimiento.encargado,
-                    amigo_codigo: pendienteMovimiento.amigo_codigo,
+                    alumno_id: pendienteMovimiento.alumno_id,
+                    companeros: pendienteMovimiento.companeros || [],
                     viaje_destino: viajeDestinoDesborde
                 }).then(function (respuesta) {
-                    estado.formPasajero = { nombre: '', codigo: '', encargado: '', amigo: '', conEncargado: false };
+                    estado.formPasajero = formPasajeroVacio();
                     cerrarYVolverAlViaje(viajeRegresion);
                     aviso('Estudiante reasignado', respuesta.mensaje || 'El estudiante quedó en el bus de destino.', 'exito');
                 }).catch(function (error) {
@@ -2942,10 +3516,11 @@
                         nombre: pendienteAmpliar.nombre,
                         codigo: pendienteAmpliar.codigo,
                         encargado: pendienteAmpliar.encargado,
-                        amigo_codigo: pendienteAmpliar.amigo_codigo
+                        alumno_id: pendienteAmpliar.alumno_id,
+                        companeros: pendienteAmpliar.companeros || []
                     });
                 }).then(function (respuesta) {
-                    estado.formPasajero = { nombre: '', codigo: '', encargado: '', amigo: '', conEncargado: false };
+                    estado.formPasajero = formPasajeroVacio();
                     cerrarYVolverAlViaje(viajeRegresionAmpliar);
                     aviso('Bus ampliado', respuesta.mensaje || 'El estudiante se agregó al viaje.', 'exito');
                 }).catch(function (error) {
@@ -2994,6 +3569,10 @@
                 var viajeCambioId = Number(id) || estado.viajeModalId;
 
                 apiPost('viajes', { estado: estadoViaje }, 'estado', { id: viajeCambioId }).then(function (respuesta) {
+                    if (estadoViaje === 'programado') {
+                        delete viajesAutoCerrados[viajeCambioId];
+                    }
+
                     if (estado.viajeModalId) {
                         estado.viajeModal = respuesta.datos;
                         pintarModalViaje();
@@ -3194,33 +3773,32 @@
 
         if (formulario.id === 'formulario-pasajero') {
             var datosPasajero = collectedFormulario('formulario-pasajero');
+            var companerosPasajero = (estado.formPasajero.companeros || []).slice();
 
-            estado.formPasajero = {
-                nombre: datosPasajero.nombre,
-                codigo: datosPasajero.codigo,
-                encargado: datosPasajero.encargado,
-                amigo: datosPasajero.amigo_codigo,
-                conEncargado: datosPasajero.conEncargado
-            };
+            estado.formPasajero.nombre = datosPasajero.nombre || '';
+            estado.formPasajero.codigo = datosPasajero.codigo || '';
+            estado.formPasajero.encargado = datosPasajero.encargado || '';
+            estado.formPasajero.alumnoId = Number(datosPasajero.alumno_id || 0) || null;
 
             apiPost('pasajeros', {
                 viaje_id: estado.viajeModalId,
-                nombre: datosPasajero.nombre,
-                codigo: datosPasajero.codigo,
-                encargado: datosPasajero.encargado,
-                amigo_codigo: datosPasajero.amigo_codigo
+                nombre: datosPasajero.nombre || '',
+                codigo: datosPasajero.codigo || '',
+                encargado: datosPasajero.encargado || '',
+                alumno_id: estado.formPasajero.alumnoId,
+                companeros: companerosPasajero
             }).then(function (respuesta) {
                 estado.viajeModal = respuesta.datos;
                 estado.advertenciaCodigo = null;
-                estado.formPasajero = { nombre: '', codigo: '', encargado: '', amigo: '', conEncargado: false };
+                estado.formPasajero = formPasajeroVacio();
                 pintarModalViaje();
                 aviso('Estudiante agregado', 'El pasajero se añadió a la lista del viaje.', 'exito');
                 refrescarFondo();
 
-                var nombreCampo = $('#pasajero-nombre');
+                var codigoCampo = $('#pasajero-codigo');
 
-                if (nombreCampo) {
-                    nombreCampo.focus();
+                if (codigoCampo) {
+                    codigoCampo.focus();
                 }
             }).catch(function (error) {
                 if (error.codigo === 'codigo_repetido') {
@@ -3236,10 +3814,11 @@
                 if (error.codigo === 'sin_cupos') {
                     abrirModalDesborde({
                         viaje_id: estado.viajeModalId,
-                        nombre: datosPasajero.nombre,
-                        codigo: datosPasajero.codigo,
-                        encargado: datosPasajero.encargado,
-                        amigo_codigo: datosPasajero.amigo_codigo,
+                        nombre: datosPasajero.nombre || '',
+                        codigo: datosPasajero.codigo || '',
+                        encargado: datosPasajero.encargado || '',
+                        alumno_id: estado.formPasajero.alumnoId,
+                        companeros: companerosPasajero,
                         detalles: error.detalles || {}
                     });
                     return;
@@ -3373,7 +3952,7 @@
 
     function iniciar() {
         var hoy = new Date();
-        $('#fecha-hoy').textContent = hoy.toLocaleDateString('es-SV', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        $('#fecha-hoy').textContent = hoy.toLocaleDateString(localeFechas(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
         $('#pestanas').addEventListener('click', function (evento) {
             var pestana = evento.target.closest('.pestana');
@@ -3381,6 +3960,12 @@
             if (pestana) {
                 cambiarVista(pestana.getAttribute('data-vista'));
             }
+        });
+
+        // Al cambiar el idioma se repintan las fechas y la vista actual.
+        document.addEventListener('cambio-idioma', function () {
+            marcarFechaEnVivo();
+            render();
         });
 
         document.addEventListener('click', manejarAcciones);
@@ -3432,17 +4017,55 @@
                 }
             }
 
-            if (evento.target.id === 'pasajero-codigo') {
-                estado.formPasajero.codigo = evento.target.value;
-                validarFormatoCodigo(evento.target);
+            if (evento.target.id === 'busqueda-profesor') {
+                if (estado.selectorProfesor) {
+                    estado.selectorProfesor.busqueda = evento.target.value;
+                    pintarListaProfesores();
+                }
             }
 
-            if (evento.target.id === 'pasajero-amigo') {
-                estado.formPasajero.amigo = evento.target.value;
+            if (evento.target.id === 'pasajero-codigo') {
+                var codigoEscrito = normalizarCodigoCliente(evento.target.value);
+
+                estado.formPasajero.codigo = evento.target.value;
+                validarFormatoCodigo(evento.target);
+
+                // Si el código dejó de coincidir con el alumno elegido, el nombre
+                // que trajo el padrón ya no corresponde y se vuelve a dejar vacío.
+                if (estado.formPasajero.nombreAutomatico
+                    && codigoEscrito !== normalizarCodigoCliente(estado.formPasajero.codigoAlumno)) {
+                    estado.formPasajero.nombreAutomatico = false;
+                    estado.formPasajero.alumnoId = null;
+                    estado.formPasajero.codigoAlumno = '';
+                    estado.formPasajero.nombre = '';
+
+                    var nombreAutomatico = $('#pasajero-nombre');
+                    var alumnoOculto = $('#pasajero-alumno');
+                    var ayudaPadron = $('#ayuda-pasajero');
+
+                    if (nombreAutomatico) {
+                        nombreAutomatico.value = '';
+                    }
+
+                    if (alumnoOculto) {
+                        alumnoOculto.value = '';
+                    }
+
+                    if (ayudaPadron && !ayudaPadron.classList.contains('ayuda-error')) {
+                        ayudaPadron.textContent = 'Escribe el nombre: ese código no está en el padrón.';
+                    }
+                }
+
+                programarSugerencias('pasajero', evento.target.value);
+            }
+
+            if (evento.target.id === 'pasajero-companero') {
+                programarSugerencias('companero', evento.target.value);
             }
 
             if (evento.target.id === 'pasajero-nombre') {
                 estado.formPasajero.nombre = evento.target.value;
+                estado.formPasajero.nombreAutomatico = false;
             }
 
             if (evento.target.id === 'pasajero-encargado') {
@@ -3464,6 +4087,18 @@
             if (evento.target.id === 'pasajero-con-encargado') {
                 estado.formPasajero.conEncargado = evento.target.checked;
                 alternarEncargado(evento.target.checked);
+
+                // Con el campo oculto el servidor seguiría contando dos personas,
+                // así que al desmarcar se borra el nombre del encargado.
+                if (!evento.target.checked) {
+                    estado.formPasajero.encargado = '';
+
+                    var encargadoCampo = $('#pasajero-encargado');
+
+                    if (encargadoCampo) {
+                        encargadoCampo.value = '';
+                    }
+                }
             }
 
             if (evento.target.id === 'pago-pasajero') {
@@ -3479,8 +4114,52 @@
             }
         });
 
+        $('#seleccion-cerrar').addEventListener('click', cerrarSelector);
+
+        $('#capa-seleccion').addEventListener('click', function (evento) {
+            if (evento.target === evento.currentTarget) {
+                cerrarSelector();
+            }
+        });
+
         document.addEventListener('keydown', function (evento) {
+            var idCampo = evento.target ? evento.target.id : '';
+
+            if (idCampo === 'pasajero-codigo' || idCampo === 'pasajero-companero') {
+                var capaSugerencias = document.getElementById(
+                    idCampo === 'pasajero-companero' ? 'sugerencias-companero' : 'sugerencias-pasajero'
+                );
+
+                if (moverSugerencia(evento, capaSugerencias)) {
+                    return;
+                }
+            }
+
+            if (idCampo === 'pasajero-companero') {
+                // Enter o coma convierten lo escrito en un chip.
+                if ((evento.key === 'Enter' || evento.key === ',') && evento.target.value.trim() !== '') {
+                    evento.preventDefault();
+                    agregarCompanero(evento.target.value);
+                    return;
+                }
+
+                // Borrar con el campo vacío quita al último compañero.
+                if (evento.key === 'Backspace' && evento.target.value === '') {
+                    var codigosCompaneros = estado.formPasajero.companeros || [];
+
+                    if (codigosCompaneros.length) {
+                        quitarCompanero(codigosCompaneros[codigosCompaneros.length - 1]);
+                        return;
+                    }
+                }
+            }
+
             if (evento.key !== 'Escape') {
+                return;
+            }
+
+            if (selectorAbierto()) {
+                cerrarSelector();
                 return;
             }
 
@@ -3586,6 +4265,7 @@
         window.setInterval(function () {
             marcarFechaEnVivo();
             actualizarTemporizador();
+            revisarCierreAutomatico();
         }, 1000);
 
         cargarPanel();

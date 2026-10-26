@@ -38,7 +38,7 @@ El método de despliegue principal para RideRoster se realiza a través de XAMPP
    * Para esto, se debe tener una copia de la DB, que el desarrollador le dará, abrir `https://localhost/phpmyadmin/`. en el navegador, ir a SQL, usar el comando  ```bash CREATE DATABASE rideroster;```, y por último darle click a 'importar' y poner el archivo .sql que el desarrollador proporcione.
 7. **Acceso al sistema**: Abre tu navegador web e ingresa a `http://localhost/RideRoster/index.php`. 
 
-### 1. Instalación de XAMPP (Linux), método secundario
+### 1. Instalación del sistema (Linux), método secundario
 
 ```bash
 # 1. Crear la base de datos y cargar los datos de demostración

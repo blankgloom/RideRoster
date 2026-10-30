@@ -1004,6 +1004,7 @@
             return '<tr>' +
                 '<td><span class="orden-inscripcion">' + pasajero.orden + '</span></td>' +
                 '<td><span class="celda-principal">' + escapar(pasajero.nombre) + '</span>' +
+                (pasajero.encargado ? '<span class="celda-secundaria">Encargado: ' + escapar(pasajero.encargado) + '</span>' : '') +
                 (pasajero.duplicado ? '<span class="pastilla error sin-punto linea">Código repetido</span>' : '') +
                 (pasajero.companeros && pasajero.companeros.length ? '<span class="celda-secundaria">Se sienta con ' + escapar(pasajero.companeros.join(', ')) + '</span>' : '') + '</td>' +
                 '<td class="numero celda-codigo">' + escapar(pasajero.codigo) + '</td>' +
@@ -2197,6 +2198,7 @@
             return '<tr>' +
                 '<td><span class="orden-inscripcion">' + pasajero.orden + '</span></td>' +
                 '<td><span class="celda-principal">' + escapar(pasajero.nombre) + '</span>' +
+                (pasajero.encargado ? '<span class="celda-secundaria">Encargado: ' + escapar(pasajero.encargado) + '</span>' : '') +
                 (pasajero.duplicado ? '<span class="pastilla error sin-punto linea">Código repetido</span>' : '') +
                 (pasajero.companeros && pasajero.companeros.length ? '<span class="celda-secundaria">Se sienta con ' + escapar(pasajero.companeros.join(', ')) + '</span>' : '') + '</td>' +
                 '<td class="numero celda-codigo">' + escapar(pasajero.codigo) + '</td>' +
@@ -2301,28 +2303,10 @@
             '<div><dt>Profesor</dt><dd>' + escapar(viaje.profesor_encargado) + '</dd></div>' +
             '</dl></div></section>' +
             '<section class="tarjeta"><div class="tarjeta-cabecera"><h3>Pagos</h3>' +
-            '<button type="button" class="boton boton-borde boton-pequeno" data-accion="cobrar-pendientes"' +
-            (viaje.pendiente > 0 ? '' : ' disabled') + '>Cobrar lo pendiente</button></div>' +
+            '<span class="texto-apagado nota-pequena">Los pagos se registran automáticamente al agregar un estudiante.</span></div>' +
             '<div class="tarjeta-cuerpo compacto">' +
-            '<form class="formulario" id="formulario-pago">' +
-            '<div class="campo"><label class="campo-etiqueta" for="pago-pasajero">Estudiante</label>' +
-            '<select class="control" id="pago-pasajero" name="pasajero_id">' + opcionesPasajeros + '</select>' +
-            '<span class="campo-ayuda" id="pago-detalle">El pago se registra a nombre del viaje.</span></div>' +
-            '<div class="formulario dos-columnas compacto-campos">' +
-            '<div class="campo"><label class="campo-etiqueta" for="pago-monto">Monto</label>' +
-            '<input type="number" class="control numero" id="pago-monto" name="monto" step="0.01" min="0" placeholder="0.00"></div>' +
-            '<div class="campo"><label class="campo-etiqueta" for="pago-metodo">Método</label>' +
-            '<select class="control" id="pago-metodo" name="metodo"><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="otro">Otro</option></select></div>' +
-            '</div>' +
-            '<div class="campo"><label class="campo-etiqueta" for="pago-nota">Referencia</label>' +
-            '<input type="text" class="control" id="pago-nota" name="nota" placeholder="Recibo o nota del pago"></div>' +
-            '<div class="grupo-botones inicio">' +
-            '<button type="submit" class="boton boton-secundario">Registrar pago</button>' +
-            '</div></form></div>' +
-            '<div class="tabla-envoltura tabla-corta"><table class="tabla tabla-compacta"><thead><tr>' +
-            '<th>Estudiante</th><th class="col-derecha">Monto</th><th>Método</th><th>Fecha</th><th></th>' +
-            '</tr></thead><tbody>' + pagos + '</tbody></table></div>' +
-            '</section>' +
+            '<p class="texto-apagado nota-pequena">El monto cubierto por cada estudiante se muestra en la columna «Pagado» de la lista.</p>' +
+            '</div></section>' +
             '</div>' +
             '</div>';
 

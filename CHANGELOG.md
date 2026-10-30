@@ -5,6 +5,23 @@ Todas las novedades de RideRoster se registran en este archivo.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el
 versionado se basa en [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.1.1] - 2026-10-30
+
+### Cambiado
+- **Pagos automáticos**: al agregar un estudiante al viaje se registra automáticamente el
+  pago por el costo completo (estudiante y, si aplica, su encargado). Se elimina el
+  apartado independiente de «Pagos»; el monto cubierto sigue visible en la columna
+  «Pagado» de la lista de pasajeros.
+- **Encargados**: en el listado del bus el encargado aparece debajo del estudiante.
+- **Compañeros de viaje**: ahora se visualizan correctamente en el listado del bus.
+
+## [1.0.1] - 2026-10-30
+
+### Cambiado
+- **Nomenclatura**: «Comandos de Salvamento» pasa a «Personal de Asistencia» en código,
+  base de datos, vistas y documentación. La tabla `personal_salvamento` se renombra a
+  `personal_asistencia` (con migración automática).
+
 ## [1.0.0] - 2026-10-25
 
 Versión **1.0.0**: el sistema queda completo y estable. Se cierra el ciclo de desarrollo

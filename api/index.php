@@ -882,6 +882,25 @@ try {
                     guardar_companeros($pasajeroId, $companeros);
                 }
 
+                // Pago automático: al agregar el alumno se marca como pagado por el
+                // costo completo (estudiante y, si aplica, su encargado).
+                $costoPersona = (float) ($detalle['costo_persona'] ?? 0);
+                $personas = $encargado !== '' ? 2 : 1;
+                $montoPago = round($costoPersona * $personas, 2);
+
+                if ($montoPago > 0) {
+                    db()->prepare('INSERT INTO pagos (viaje_id, pasajero_id, monto, metodo, fecha, nota)
+                                    VALUES (:viaje, :pasajero, :monto, :metodo, :fecha, :nota)')
+                        ->execute([
+                            ':viaje'    => $viajeInscripcion,
+                            ':pasajero' => $pasajeroId,
+                            ':monto'    => $montoPago,
+                            ':metodo'   => 'efectivo',
+                            ':fecha'    => date('Y-m-d'),
+                            ':nota'     => 'Pago automático al agregar al viaje',
+                        ]);
+                }
+
                 incorporar_pasajero($viajeInscripcion, $pasajeroId);
 
                 $inscripcion = detalle_viaje($viajeInscripcion);

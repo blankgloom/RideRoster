@@ -109,9 +109,17 @@ function companeros_del_viaje(int $viajeId): array
     foreach ($sentencia->fetchAll() as $fila) {
         $codigo = normalizar_codigo((string) $fila['codigo']);
 
-        if ($codigo !== '') {
-            $mapa[(int) $fila['pasajero_id']][] = $codigo;
+        if ($codigo === '') {
+            continue;
         }
+
+        $alumno = alumno_por_codigo($codigo);
+        $nombre = $alumno !== null ? (string) $alumno['nombre'] : $codigo;
+
+        $mapa[(int) $fila['pasajero_id']][] = [
+            'codigo' => $codigo,
+            'nombre' => $nombre,
+        ];
     }
 
     return $mapa;

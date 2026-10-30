@@ -1006,7 +1006,7 @@
                 '<td><span class="celda-principal">' + escapar(pasajero.nombre) + '</span>' +
                 (pasajero.encargado ? '<span class="celda-secundaria">Encargado: ' + escapar(pasajero.encargado) + '</span>' : '') +
                 (pasajero.duplicado ? '<span class="pastilla error sin-punto linea">Código repetido</span>' : '') +
-                (pasajero.companeros && pasajero.companeros.length ? '<span class="celda-secundaria">Se sienta con ' + escapar(pasajero.companeros.join(', ')) + '</span>' : '') + '</td>' +
+                (pasajero.companeros && pasajero.companeros.length ? '<span class="celda-secundaria">Se sienta con ' + escapar(pasajero.companeros.map(function (c) { return c.codigo; }).join(', ')) + '</span>' : '') + '</td>' +
                 '<td class="numero celda-codigo">' + escapar(pasajero.codigo) + '</td>' +
                 '<td>' + (pasajero.encargado ? escapar(pasajero.encargado) : '<span class="sin-dato">Sin encargado</span>') + '</td>' +
                 '<td class="columna-media numero">' + dinero(pasajero.costo) +
@@ -2200,7 +2200,7 @@
                 '<td><span class="celda-principal">' + escapar(pasajero.nombre) + '</span>' +
                 (pasajero.encargado ? '<span class="celda-secundaria">Encargado: ' + escapar(pasajero.encargado) + '</span>' : '') +
                 (pasajero.duplicado ? '<span class="pastilla error sin-punto linea">Código repetido</span>' : '') +
-                (pasajero.companeros && pasajero.companeros.length ? '<span class="celda-secundaria">Se sienta con ' + escapar(pasajero.companeros.join(', ')) + '</span>' : '') + '</td>' +
+                (pasajero.companeros && pasajero.companeros.length ? '<span class="celda-secundaria">Se sienta con ' + escapar(pasajero.companeros.map(function (c) { return c.codigo; }).join(', ')) + '</span>' : '') + '</td>' +
                 '<td class="numero celda-codigo">' + escapar(pasajero.codigo) + '</td>' +
                 '<td>' + (pasajero.encargado ? escapar(pasajero.encargado) : '<span class="sin-dato">Sin encargado</span>') + '</td>' +
                 '<td class="columna-media numero">' + dinero(pasajero.costo) +
@@ -2211,10 +2211,12 @@
                 '</tr>';
 
             // Renderizar compañeros anidados bajo el alumno principal.
-            var filasCompaneros = (pasajero.companeros || []).map(function (codigo) {
+            var filasCompaneros = (pasajero.companeros || []).map(function (comp) {
+                var codigo = comp.codigo || comp;
+                var nombre = comp.nombre || codigo;
                 return '<tr class="fila-companero">' +
                     '<td></td>' +
-                    '<td><span class="celda-secundaria">Compañero de ' + escapar(pasajero.nombre) + ' · ' + escapar(codigo) + '</span></td>' +
+                    '<td><span class="celda-secundaria">Compañero de ' + escapar(pasajero.nombre) + ' · ' + escapar(nombre) + ' (' + escapar(codigo) + ')</span></td>' +
                     '<td class="numero celda-codigo">' + escapar(codigo) + '</td>' +
                     '<td><span class="sin-dato">—</span></td>' +
                     '<td class="columna-media numero">' + dinero(viaje.costo_persona) + '</td>' +
@@ -2531,10 +2533,12 @@
             bus.lista.forEach(function (pasajero, indice) {
                 var prioridad = pasajero.pendiente <= 0 ? 0 : (pasajero.pagado > 0 ? 1 : 2);
                 expandidos.push({ pasajero: pasajero, indice: indice, prioridad: prioridad, principal: true });
-                (pasajero.companeros || []).forEach(function (codigo, ci) {
+                (pasajero.companeros || []).forEach(function (comp, ci) {
+                    var codigo = comp.codigo || comp;
+                    var nombre = comp.nombre || codigo;
                     expandidos.push({
                         pasajero: {
-                            nombre: codigo,
+                            nombre: nombre,
                             codigo: codigo,
                             encargado: null,
                             asiento: pasajero.asiento,

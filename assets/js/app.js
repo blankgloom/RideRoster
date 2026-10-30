@@ -1000,9 +1000,12 @@
             return texto.indexOf(estado.busquedaPasajeros.toLowerCase()) !== -1;
         });
 
+        var contadorPasajeros = 0;
         var filasPasajeros = filtrados.length ? filtrados.map(function (pasajero) {
+            contadorPasajeros++;
+            var ordenPrincipal = contadorPasajeros;
             var filaPrincipal = '<tr>' +
-                '<td><span class="orden-inscripcion">' + pasajero.orden + '</span></td>' +
+                '<td><span class="orden-inscripcion">' + ordenPrincipal + '</span></td>' +
                 '<td><span class="celda-principal">' + escapar(pasajero.nombre) + '</span>' +
                 (pasajero.encargado ? '<span class="celda-secundaria">Encargado: ' + escapar(pasajero.encargado) + '</span>' : '') +
                 (pasajero.duplicado ? '<span class="pastilla error sin-punto linea">Código repetido</span>' : '') +
@@ -1018,12 +1021,14 @@
                 '</tr>';
 
             var filasCompaneros = (pasajero.companeros || []).map(function (comp) {
+                contadorPasajeros++;
+                var ordenCompanero = contadorPasajeros;
                 var codigo = comp.codigo || comp;
                 var nombre = comp.nombre || codigo;
                 var conEnc = !!(typeof comp === 'object' && comp.con_encargado);
                 var costoComp = viaje.costo_persona * (conEnc ? 2 : 1);
                 return '<tr class="fila-companero">' +
-                    '<td></td>' +
+                    '<td><span class="orden-inscripcion">' + ordenCompanero + '</span></td>' +
                     '<td><span class="celda-secundaria">Compañero de ' + escapar(pasajero.nombre) + ' · ' + escapar(nombre) + ' (' + escapar(codigo) + ')' + (conEnc ? ' · con encargado' : '') + '</span></td>' +
                     '<td class="numero celda-codigo">' + escapar(codigo) + '</td>' +
                     '<td><span class="sin-dato">—</span></td>' +
@@ -2235,12 +2240,14 @@
 
             // Renderizar compañeros anidados bajo el alumno principal.
             var filasCompaneros = (pasajero.companeros || []).map(function (comp) {
+                contadorPasajeros++;
+                var ordenCompanero = contadorPasajeros;
                 var codigo = comp.codigo || comp;
                 var nombre = comp.nombre || codigo;
                 var conEnc = !!(typeof comp === 'object' && comp.con_encargado);
                 var costoComp = viaje.costo_persona * (conEnc ? 2 : 1);
                 return '<tr class="fila-companero">' +
-                    '<td></td>' +
+                    '<td><span class="orden-inscripcion">' + ordenCompanero + '</span></td>' +
                     '<td><span class="celda-secundaria">Compañero de ' + escapar(pasajero.nombre) + ' · ' + escapar(nombre) + ' (' + escapar(codigo) + ')' + (conEnc ? ' · con encargado' : '') + '</span></td>' +
                     '<td class="numero celda-codigo">' + escapar(codigo) + '</td>' +
                     '<td><span class="sin-dato">—</span></td>' +

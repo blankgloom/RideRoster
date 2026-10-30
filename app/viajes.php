@@ -185,7 +185,8 @@ function pasajeros_ordenados(int $viajeId, float $costoPersona = 0.0): array
         $pasajero['orden'] = $indice + 1;
         $pasajero['pagado'] = (float) $pasajero['pagado'];
         $pasajero['duplicado'] = (int) $pasajero['repeticiones'] > 1;
-        $pasajero['costo'] = round($costoPersona * ($pasajero['encargado'] !== null && $pasajero['encargado'] !== '' ? 2 : 1), 2);
+        $companerosCantidad = count($pasajero['companeros']);
+        $pasajero['costo'] = round($costoPersona * (($pasajero['encargado'] !== null && $pasajero['encargado'] !== '' ? 2 : 1) + $companerosCantidad), 2);
         $pasajero['pendiente'] = max(0.0, round($pasajero['costo'] - $pasajero['pagado'], 2));
         $pasajero['companeros'] = $companeros[$pasajero['id']] ?? [];
     }
@@ -242,6 +243,18 @@ function detalle_viaje(int $viajeId): ?array
 
     $viaje = normalizar_viaje($fila);
     $viaje['pasajeros_lista'] = pasajeros_ordenados($viajeId, (float) $fila['costo_persona']);
+
+    // Los compañeros de viaje cuentan como pasajeros adicionales para ocupación y costo.
+    $companerosTotal = 0;
+    foreach ($viaje['pasajeros_lista'] as $pasajero) {
+        $companerosTotal += count($pasajero['companeros'] ?? []);
+    }
+    $viaje['personas'] += $companerosTotal;
+    $viaje['pasajeros'] = count($viaje['pasajeros_lista']);
+    $viaje['ocupados'] = $viaje['personas'] + $viaje['asientos_personal'];
+    $viaje['cupos_disponibles'] = max(0, $viaje['capacidad_bus'] - $viaje['ocupados']);
+    $viaje['esperado'] = round($viaje['personas'] * $viaje['costo_persona'], 2);
+    $viaje['pendiente'] = max(0.0, round($viaje['esperado'] - $viaje['recaudado'], 2));
     $viaje['pagos'] = pagos_de_viaje($viajeId);
     $viaje['equipo_asistencia'] = equipo_asistencia_de_paseo((int) $fila['paseo_id']);
 

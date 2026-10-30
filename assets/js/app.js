@@ -2195,7 +2195,7 @@
         }
 
         var filas = viaje.pasajeros_lista.length ? viaje.pasajeros_lista.map(function (pasajero) {
-            return '<tr>' +
+            var filaPrincipal = '<tr>' +
                 '<td><span class="orden-inscripcion">' + pasajero.orden + '</span></td>' +
                 '<td><span class="celda-principal">' + escapar(pasajero.nombre) + '</span>' +
                 (pasajero.encargado ? '<span class="celda-secundaria">Encargado: ' + escapar(pasajero.encargado) + '</span>' : '') +
@@ -2209,6 +2209,21 @@
                 (pasajero.pendiente > 0 ? '<span class="celda-secundaria">faltan ' + dinero(pasajero.pendiente) + '</span>' : '') + '</td>' +
                 '<td class="columna-acciones"><button type="button" class="boton-icono peligro" data-accion="quitar-pasajero" data-id="' + pasajero.id + '" title="Retirar del viaje">' + icono(ICONOS.bote) + '</button></td>' +
                 '</tr>';
+
+            // Renderizar compañeros anidados bajo el alumno principal.
+            var filasCompaneros = (pasajero.companeros || []).map(function (codigo) {
+                return '<tr class="fila-companero">' +
+                    '<td></td>' +
+                    '<td><span class="celda-secundaria">Compañero de ' + escapar(pasajero.nombre) + ' · ' + escapar(codigo) + '</span></td>' +
+                    '<td class="numero celda-codigo">' + escapar(codigo) + '</td>' +
+                    '<td><span class="sin-dato">—</span></td>' +
+                    '<td class="columna-media numero">' + dinero(viaje.costo_persona) + '</td>' +
+                    '<td class="columna-media numero">' + dinero(viaje.costo_persona) + '</td>' +
+                    '<td></td>' +
+                    '</tr>';
+            }).join('');
+
+            return filaPrincipal + filasCompaneros;
         }).join('') : '<tr><td colspan="7"><div class="estado-vacio compacto"><strong>Sin estudiantes</strong><p>Agrega al primer estudiante del viaje.</p></div></td></tr>';
 
         var pagos = viaje.pagos.length ? viaje.pagos.map(function (pago) {

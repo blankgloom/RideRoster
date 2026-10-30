@@ -885,7 +885,7 @@ try {
                 // Pago automático: al agregar el alumno se marca como pagado por el
                 // costo completo (estudiante y, si aplica, su encargado).
                 $costoPersona = (float) ($detalle['costo_persona'] ?? 0);
-                $personas = $encargado !== '' ? 2 : 1;
+                $personas = ($encargado !== '' ? 2 : 1) + count($companeros);
                 $montoPago = round($costoPersona * $personas, 2);
 
                 if ($montoPago > 0) {

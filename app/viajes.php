@@ -185,10 +185,10 @@ function pasajeros_ordenados(int $viajeId, float $costoPersona = 0.0): array
         $pasajero['orden'] = $indice + 1;
         $pasajero['pagado'] = (float) $pasajero['pagado'];
         $pasajero['duplicado'] = (int) $pasajero['repeticiones'] > 1;
+        $pasajero['companeros'] = $companeros[$pasajero['id']] ?? [];
         $companerosCantidad = count($pasajero['companeros']);
         $pasajero['costo'] = round($costoPersona * (($pasajero['encargado'] !== null && $pasajero['encargado'] !== '' ? 2 : 1) + $companerosCantidad), 2);
         $pasajero['pendiente'] = max(0.0, round($pasajero['costo'] - $pasajero['pagado'], 2));
-        $pasajero['companeros'] = $companeros[$pasajero['id']] ?? [];
     }
 
     return $lista;

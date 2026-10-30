@@ -122,8 +122,11 @@ function lista_de_codigos(mixed $valores): array
     $codigos = [];
 
     foreach ($valores as $valor) {
-        $codigo = normalizar_codigo((string) $valor);
+        if (is_array($valor)) {
+            $valor = $valor['codigo'] ?? '';
+        }
 
+        $codigo = normalizar_codigo((string) $valor);
         if ($codigo === '' || in_array($codigo, $codigos, true)) {
             continue;
         }
@@ -885,7 +888,10 @@ try {
                 // Pago automático: al agregar el alumno se marca como pagado por el
                 // costo completo (estudiante y, si aplica, su encargado).
                 $costoPersona = (float) ($detalle['costo_persona'] ?? 0);
-                $personas = ($encargado !== '' ? 2 : 1) + count($companeros);
+                $personas = $encargado !== '' ? 2 : 1;
+                foreach ($companeros as $comp) {
+                    $personas += is_array($comp) && !empty($comp['con_encargado']) ? 2 : 1;
+                }
                 $montoPago = round($costoPersona * $personas, 2);
 
                 if ($montoPago > 0) {

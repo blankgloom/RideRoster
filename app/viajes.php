@@ -97,7 +97,7 @@ function normalizar_viaje(array $fila): array
  */
 function companeros_del_viaje(int $viajeId): array
 {
-    $sentencia = db()->prepare('SELECT c.pasajero_id, c.codigo
+    $sentencia = db()->prepare('SELECT c.pasajero_id, c.codigo, c.con_encargado
                                 FROM companeros c
                                 INNER JOIN pasajeros ps ON ps.id = c.pasajero_id
                                 WHERE ps.viaje_id = :viaje
@@ -117,8 +117,9 @@ function companeros_del_viaje(int $viajeId): array
         $nombre = $alumno !== null ? (string) $alumno['nombre'] : $codigo;
 
         $mapa[(int) $fila['pasajero_id']][] = [
-            'codigo' => $codigo,
-            'nombre' => $nombre,
+            'codigo'        => $codigo,
+            'nombre'        => $nombre,
+            'con_encargado' => (int) ($fila['con_encargado'] ?? 0) === 1,
         ];
     }
 
@@ -157,19 +158,29 @@ function guardar_companeros(int $pasajeroId, array $codigos): void
     db()->prepare('DELETE FROM companeros WHERE pasajero_id = :pasajero')
         ->execute([':pasajero' => $pasajeroId]);
 
-    $insertar = db()->prepare('INSERT IGNORE INTO companeros (pasajero_id, codigo)
-                               VALUES (:pasajero, :codigo)');
+    $insertar = db()->prepare('INSERT IGNORE INTO companeros (pasajero_id, codigo, con_encargado)
+                               VALUES (:pasajero, :codigo, :con_encargado)');
     $vistos = [];
 
-    foreach ($codigos as $codigo) {
-        $codigo = normalizar_codigo((string) $codigo);
+    foreach ($codigos as $item) {
+        if (is_array($item)) {
+            $codigo = normalizar_codigo((string) ($item['codigo'] ?? ''));
+            $conEncargado = !empty($item['con_encargado']) ? 1 : 0;
+        } else {
+            $codigo = normalizar_codigo((string) $item);
+            $conEncargado = 0;
+        }
 
         if ($codigo === '' || isset($vistos[$codigo])) {
             continue;
         }
 
         $vistos[$codigo] = true;
-        $insertar->execute([':pasajero' => $pasajeroId, ':codigo' => $codigo]);
+        $insertar->execute([
+            ':pasajero'      => $pasajeroId,
+            ':codigo'        => $codigo,
+            ':con_encargado' => $conEncargado,
+        ]);
     }
 }
 
@@ -194,7 +205,10 @@ function pasajeros_ordenados(int $viajeId, float $costoPersona = 0.0): array
         $pasajero['pagado'] = (float) $pasajero['pagado'];
         $pasajero['duplicado'] = (int) $pasajero['repeticiones'] > 1;
         $pasajero['companeros'] = $companeros[$pasajero['id']] ?? [];
-        $companerosCantidad = count($pasajero['companeros']);
+        $companerosCantidad = 0;
+        foreach ($pasajero['companeros'] as $comp) {
+            $companerosCantidad += !empty($comp['con_encargado']) ? 2 : 1;
+        }
         $pasajero['costo'] = round($costoPersona * (($pasajero['encargado'] !== null && $pasajero['encargado'] !== '' ? 2 : 1) + $companerosCantidad), 2);
         $pasajero['pendiente'] = max(0.0, round($pasajero['costo'] - $pasajero['pagado'], 2));
     }

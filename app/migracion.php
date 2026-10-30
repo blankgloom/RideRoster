@@ -409,6 +409,7 @@ function aplicar_migraciones(bool $forzar = false): void
         }
 
         migrar_personal_salvamento_a_asistencia();
+        agregar_columna_si_falta('companeros', 'con_encargado', 'con_encargado TINYINT(1) NOT NULL DEFAULT 0');
         aplicar_esquema_padron();
         aplicar_esquema_boletos();
 

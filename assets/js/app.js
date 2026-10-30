@@ -1001,7 +1001,7 @@
         });
 
         var filasPasajeros = filtrados.length ? filtrados.map(function (pasajero) {
-            return '<tr>' +
+            var filaPrincipal = '<tr>' +
                 '<td><span class="orden-inscripcion">' + pasajero.orden + '</span></td>' +
                 '<td><span class="celda-principal">' + escapar(pasajero.nombre) + '</span>' +
                 (pasajero.encargado ? '<span class="celda-secundaria">Encargado: ' + escapar(pasajero.encargado) + '</span>' : '') +
@@ -1016,6 +1016,24 @@
                 '<button type="button" class="boton-icono" data-accion="cobrar-pasajero" data-id="' + pasajero.id + '" title="Registrar pago de ' + escapar(pasajero.nombre) + '">' + icono(ICONOS.cobrar) + '</button>' +
                 '<button type="button" class="boton-icono peligro" data-accion="quitar-pasajero" data-id="' + pasajero.id + '" data-viaje="' + viaje.id + '" title="Retirar del viaje">' + icono(ICONOS.bote) + '</button></td>' +
                 '</tr>';
+
+            var filasCompaneros = (pasajero.companeros || []).map(function (comp) {
+                var codigo = comp.codigo || comp;
+                var nombre = comp.nombre || codigo;
+                var conEnc = !!(typeof comp === 'object' && comp.con_encargado);
+                var costoComp = viaje.costo_persona * (conEnc ? 2 : 1);
+                return '<tr class="fila-companero">' +
+                    '<td></td>' +
+                    '<td><span class="celda-secundaria">Compañero de ' + escapar(pasajero.nombre) + ' · ' + escapar(nombre) + ' (' + escapar(codigo) + ')' + (conEnc ? ' · con encargado' : '') + '</span></td>' +
+                    '<td class="numero celda-codigo">' + escapar(codigo) + '</td>' +
+                    '<td><span class="sin-dato">—</span></td>' +
+                    '<td class="columna-media numero">' + dinero(costoComp) + '</td>' +
+                    '<td class="columna-media numero">' + dinero(costoComp) + '</td>' +
+                    '<td></td>' +
+                    '</tr>';
+            }).join('');
+
+            return filaPrincipal + filasCompaneros;
         }).join('') : (viaje
             ? '<tr><td colspan="7"><div class="estado-vacio"><strong>Sin estudiantes</strong><p>Agrega a los primeros estudiantes desde el botón Gestionar viaje.</p></div></td></tr>'
             : '<tr><td colspan="7"><div class="estado-vacio"><strong>Sin viaje activo</strong><p>Crea un paseo en Administración y programa un viaje para inscribir estudiantes.</p></div></td></tr>');
@@ -2038,8 +2056,12 @@
 
         var codigos = estado.formPasajero.companeros || [];
 
-        contenedor.innerHTML = codigos.map(function (codigo) {
+        contenedor.innerHTML = codigos.map(function (item) {
+            var codigo = (typeof item === 'string') ? item : item.codigo;
+            var conEnc = (typeof item === 'object' && item) ? !!item.con_encargado : false;
             return '<span class="chip">' + escapar(codigo) +
+                '<label class="chip-check"><input type="checkbox" data-accion="toggle-companero-encargado" data-codigo="' +
+                escapar(codigo) + '"' + (conEnc ? ' checked' : '') + '> con encargado</label>' +
                 '<button type="button" class="chip-quitar" data-accion="quitar-companero" data-codigo="' +
                 escapar(codigo) + '" aria-label="Quitar al compañero ' + escapar(codigo) + '">' +
                 icono(ICONOS.cerrar) + '</button></span>';
@@ -2071,11 +2093,11 @@
 
         var lista = estado.formPasajero.companeros || [];
 
-        if (lista.indexOf(codigo) !== -1) {
+        if (lista.some(function (item) { return (typeof item === 'string' ? item : item.codigo) === codigo; })) {
             return;
         }
 
-        lista.push(codigo);
+        lista.push({ codigo: codigo, con_encargado: false });
         estado.formPasajero.companeros = lista;
         pintarChipsCompaneros();
 
@@ -2091,7 +2113,8 @@
 
     function quitarCompanero(codigo) {
         estado.formPasajero.companeros = (estado.formPasajero.companeros || []).filter(function (item) {
-            return item !== codigo;
+            var c = (typeof item === 'string') ? item : item.codigo;
+            return c !== codigo;
         });
 
         pintarChipsCompaneros();
@@ -2214,13 +2237,15 @@
             var filasCompaneros = (pasajero.companeros || []).map(function (comp) {
                 var codigo = comp.codigo || comp;
                 var nombre = comp.nombre || codigo;
+                var conEnc = !!(typeof comp === 'object' && comp.con_encargado);
+                var costoComp = viaje.costo_persona * (conEnc ? 2 : 1);
                 return '<tr class="fila-companero">' +
                     '<td></td>' +
-                    '<td><span class="celda-secundaria">Compañero de ' + escapar(pasajero.nombre) + ' · ' + escapar(nombre) + ' (' + escapar(codigo) + ')</span></td>' +
+                    '<td><span class="celda-secundaria">Compañero de ' + escapar(pasajero.nombre) + ' · ' + escapar(nombre) + ' (' + escapar(codigo) + ')' + (conEnc ? ' · con encargado' : '') + '</span></td>' +
                     '<td class="numero celda-codigo">' + escapar(codigo) + '</td>' +
                     '<td><span class="sin-dato">—</span></td>' +
-                    '<td class="columna-media numero">' + dinero(viaje.costo_persona) + '</td>' +
-                    '<td class="columna-media numero">' + dinero(viaje.costo_persona) + '</td>' +
+                    '<td class="columna-media numero">' + dinero(costoComp) + '</td>' +
+                    '<td class="columna-media numero">' + dinero(costoComp) + '</td>' +
                     '<td></td>' +
                     '</tr>';
             }).join('');
@@ -2536,13 +2561,14 @@
                 (pasajero.companeros || []).forEach(function (comp, ci) {
                     var codigo = comp.codigo || comp;
                     var nombre = comp.nombre || codigo;
+                    var conEnc = !!(typeof comp === 'object' && comp.con_encargado);
                     expandidos.push({
                         pasajero: {
-                            nombre: nombre,
+                            nombre: nombre + (conEnc ? ' (con encargado)' : ''),
                             codigo: codigo,
                             encargado: null,
                             asiento: pasajero.asiento,
-                            costo: datos.salida.costo_persona,
+                            costo: datos.salida.costo_persona * (conEnc ? 2 : 1),
                             pagado: 0,
                             pendiente: 0
                         },
@@ -3111,6 +3137,18 @@
 
             case 'quitar-companero':
                 quitarCompanero(disparador.getAttribute('data-codigo'));
+                break;
+
+            case 'toggle-companero-encargado':
+                var cod = disparador.getAttribute('data-codigo');
+                (estado.formPasajero.companeros || []).forEach(function (item) {
+                    var c = (typeof item === 'string') ? item : item.codigo;
+                    if (c === cod) {
+                        if (typeof item === 'object') {
+                            item.con_encargado = disparador.checked;
+                        }
+                    }
+                });
                 break;
 
             case 'cambiar-periodo':

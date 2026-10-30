@@ -127,10 +127,11 @@ CREATE TABLE IF NOT EXISTS pasajeros (
 -- los acomoda juntos al generar el plano.
 
 CREATE TABLE IF NOT EXISTS companeros (
-    id          INT AUTO_INCREMENT PRIMARY KEY,
-    pasajero_id INT NOT NULL,
-    codigo      VARCHAR(40) NOT NULL,
-    creado_en   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    pasajero_id   INT NOT NULL,
+    codigo        VARCHAR(40) NOT NULL,
+    con_encargado TINYINT(1) NOT NULL DEFAULT 0,
+    creado_en     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_companeros (pasajero_id, codigo),
     INDEX idx_companeros_codigo (codigo),
     CONSTRAINT fk_companeros_pasajero FOREIGN KEY (pasajero_id) REFERENCES pasajeros (id) ON DELETE CASCADE

@@ -32,7 +32,7 @@ function consulta_viajes(): string
                    (SELECT COUNT(*) FROM pasajeros ps WHERE ps.viaje_id = v.id AND ps.encargado IS NOT NULL AND CHAR_LENGTH(ps.encargado) > 0) AS acompanantes,
                    (SELECT COUNT(*) FROM pagos pg WHERE pg.viaje_id = v.id) AS movimientos,
                    (SELECT COALESCE(SUM(monto), 0) FROM pagos pg WHERE pg.viaje_id = v.id) AS recaudado,
-                   (SELECT COUNT(*) FROM paseo_personal pp WHERE pp.paseo_id = v.paseo_id) AS equipo_salvamento
+                   (SELECT COUNT(*) FROM paseo_personal pp WHERE pp.paseo_id = v.paseo_id) AS equipo_asistencia
             FROM viajes v
             INNER JOIN paseos p ON p.id = v.paseo_id';
 }
@@ -80,7 +80,7 @@ function normalizar_viaje(array $fila): array
         'esperado'          => $esperado,
         'pendiente'         => max(0.0, round($esperado - $recaudado, 2)),
         'movimientos'       => (int) $fila['movimientos'],
-        'personal'          => 1 + (int) $fila['equipo_salvamento'],
+        'personal'          => 1 + (int) $fila['equipo_asistencia'],
         'estado'            => $fila['estado'],
         'boletos_cerrados'  => (int) ($fila['boletos_cerrados'] ?? 0) === 1,
         'boletos_cerrados_en' => $fila['boletos_cerrados_en'] ?? null,
@@ -214,10 +214,10 @@ function pagos_de_viaje(int $viajeId): array
     return $pagos;
 }
 
-function equipo_salvamento_de_paseo(int $paseoId): array
+function equipo_asistencia_de_paseo(int $paseoId): array
 {
     $sql = 'SELECT ps.id, ps.nombre, ps.puesto
-            FROM personal_salvamento ps
+            FROM personal_asistencia ps
             INNER JOIN paseo_personal pp ON pp.personal_id = ps.id
             WHERE pp.paseo_id = :paseo
             ORDER BY ps.nombre ASC';
@@ -243,7 +243,7 @@ function detalle_viaje(int $viajeId): ?array
     $viaje = normalizar_viaje($fila);
     $viaje['pasajeros_lista'] = pasajeros_ordenados($viajeId, (float) $fila['costo_persona']);
     $viaje['pagos'] = pagos_de_viaje($viajeId);
-    $viaje['equipo_salvamento'] = equipo_salvamento_de_paseo((int) $fila['paseo_id']);
+    $viaje['equipo_asistencia'] = equipo_asistencia_de_paseo((int) $fila['paseo_id']);
 
     $salida = salida_de_viaje($viajeId);
     $viaje['salida'] = $salida;

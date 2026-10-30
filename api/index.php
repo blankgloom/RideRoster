@@ -219,7 +219,7 @@ function asignar_equipo(int $paseoId, array $nombres, array $ids): void
     }
 
     foreach ($nombres as $nombre) {
-        $existe = db()->prepare('SELECT id FROM personal_salvamento WHERE nombre = :nombre LIMIT 1');
+        $existe = db()->prepare('SELECT id FROM personal_asistencia WHERE nombre = :nombre LIMIT 1');
         $existe->execute([':nombre' => $nombre]);
         $fila = $existe->fetch();
 
@@ -228,7 +228,7 @@ function asignar_equipo(int $paseoId, array $nombres, array $ids): void
             continue;
         }
 
-        $nuevo = db()->prepare('INSERT INTO personal_salvamento (nombre) VALUES (:nombre)');
+        $nuevo = db()->prepare('INSERT INTO personal_asistencia (nombre) VALUES (:nombre)');
         $nuevo->execute([':nombre' => $nombre]);
         $personalIds[] = (int) db()->lastInsertId();
     }
@@ -256,7 +256,7 @@ function listar_paseos(): array
         $paseo['costo_persona'] = (float) $paseo['costo_persona'];
         $paseo['activo'] = (int) $paseo['activo'];
         $paseo['profesor_id'] = $paseo['profesor_id'] !== null ? (int) $paseo['profesor_id'] : null;
-        $paseo['equipo_salvamento'] = equipo_salvamento_de_paseo($paseo['id']);
+        $paseo['equipo_asistencia'] = equipo_asistencia_de_paseo($paseo['id']);
     }
 
     return $paseos;
@@ -264,7 +264,7 @@ function listar_paseos(): array
 
 function listar_personal(): array
 {
-    $personal = db()->query('SELECT id, nombre, puesto FROM personal_salvamento ORDER BY nombre ASC')->fetchAll();
+    $personal = db()->query('SELECT id, nombre, puesto FROM personal_asistencia ORDER BY nombre ASC')->fetchAll();
 
     foreach ($personal as &$persona) {
         $persona['id'] = (int) $persona['id'];
@@ -1447,7 +1447,7 @@ try {
                     responder_error('datos_incompletos', 'El nombre del personal es obligatorio.');
                 }
 
-                $sentencia = db()->prepare('INSERT INTO personal_salvamento (nombre, puesto) VALUES (:nombre, :puesto)');
+                $sentencia = db()->prepare('INSERT INTO personal_asistencia (nombre, puesto) VALUES (:nombre, :puesto)');
                 $sentencia->execute([
                     ':nombre' => $nombre,
                     ':puesto' => $puesto !== '' ? $puesto : null,
@@ -1458,7 +1458,7 @@ try {
 
             if ($metodo === 'POST' && $accion === 'eliminar') {
                 db()->prepare('DELETE FROM paseo_personal WHERE personal_id = :id')->execute([':id' => $id]);
-                db()->prepare('DELETE FROM personal_salvamento WHERE id = :id')->execute([':id' => $id]);
+                db()->prepare('DELETE FROM personal_asistencia WHERE id = :id')->execute([':id' => $id]);
 
                 responder_ok(listar_personal(), ['mensaje' => 'Personal eliminado.']);
             }

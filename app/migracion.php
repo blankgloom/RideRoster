@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 const PREFIJOS_CODIGO = ['2B', '3A', '3C', '2D', '1A', '3B', '4A', '2C'];
-const ESQUEMA_VERSION = 7;
+const ESQUEMA_VERSION = 8;
 
 const TABLAS_PRINCIPALES = ['paseos', 'viajes', 'pasajeros', 'companeros', 'pagos', 'parametros', 'alumnos', 'profesores', 'encargados', 'secciones'];
 
@@ -368,6 +368,22 @@ function asignar_preferencias_demo(): void
     }
 }
 
+/**
+ * Renombra la tabla de personal de salvamento a personal de asistencia.
+ */
+function migrar_personal_salvamento_a_asistencia(): void
+{
+    if (!tabla_existe('personal_salvamento')) {
+        return;
+    }
+
+    if (tabla_existe('personal_asistencia')) {
+        return;
+    }
+
+    db()->exec('RENAME TABLE personal_salvamento TO personal_asistencia');
+}
+
 function aplicar_migraciones(bool $forzar = false): void
 {
     static $aplicadas = false;
@@ -392,6 +408,7 @@ function aplicar_migraciones(bool $forzar = false): void
             crear_tabla_asientos();
         }
 
+        migrar_personal_salvamento_a_asistencia();
         aplicar_esquema_padron();
         aplicar_esquema_boletos();
 

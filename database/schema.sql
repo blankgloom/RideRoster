@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS paseos (
     CONSTRAINT fk_paseos_profesor FOREIGN KEY (profesor_id) REFERENCES profesores (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS personal_salvamento (
+CREATE TABLE IF NOT EXISTS personal_asistencia (
     id         INT AUTO_INCREMENT PRIMARY KEY,
     nombre     VARCHAR(140) NOT NULL,
     puesto     VARCHAR(120) NULL,
@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS paseo_personal (
     personal_id INT NOT NULL,
     PRIMARY KEY (paseo_id, personal_id),
     CONSTRAINT fk_paseo_personal_paseo FOREIGN KEY (paseo_id) REFERENCES paseos (id) ON DELETE CASCADE,
-    CONSTRAINT fk_paseo_personal_persona FOREIGN KEY (personal_id) REFERENCES personal_salvamento (id) ON DELETE CASCADE
+    CONSTRAINT fk_paseo_personal_persona FOREIGN KEY (personal_id) REFERENCES personal_asistencia (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS viajes (

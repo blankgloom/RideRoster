@@ -689,7 +689,7 @@
             {
                 etiqueta: 'Personal a bordo',
                 valor: String(viaje.personal),
-                detalle: 'docentes y comandos de salvamento',
+                detalle: 'docentes y personal de asistencia',
                 icono: ICONOS.docente,
                 clase: 'ambar'
             }
@@ -813,7 +813,7 @@
             '<div class="frente-bus">' +
             '<span class="frente-volante">Volante</span>' +
             '<span class="butaca-personal">Docente</span>' +
-            '<span class="butaca-personal">Salvamento</span>' +
+            '<span class="butaca-personal">Asistencia</span>' +
             '</div><div class="malla-asientos">';
 
         filas.forEach(function (numeros, indiceFila) {
@@ -1053,9 +1053,9 @@
                 '<section class="tarjeta"><div class="tarjeta-cabecera"><h3>Personal del viaje</h3></div>' +
                 '<div class="tarjeta-cuerpo compacto"><ul class="pila-personas">' +
                 '<li><span class="inicial-persona">' + iniciales(viaje.profesor_encargado) + '</span><span class="persona-datos"><span class="persona-nombre">' + escapar(viaje.profesor_encargado) + '</span><span class="persona-puesto">Profesor encargado</span></span></li>' +
-                (viaje.equipo_salvamento.length ? viaje.equipo_salvamento.map(function (persona) {
-                    return '<li><span class="inicial-persona">' + iniciales(persona.nombre) + '</span><span class="persona-datos"><span class="persona-nombre">' + escapar(persona.nombre) + '</span><span class="persona-puesto">' + escapar(persona.puesto || 'Salvamento') + '</span></span></li>';
-                }).join('') : '<li><span class="celda-secundaria sin-margen">Sin comandos de salvamento asignados</span></li>') +
+                (viaje.equipo_asistencia.length ? viaje.equipo_asistencia.map(function (persona) {
+                    return '<li><span class="inicial-persona">' + iniciales(persona.nombre) + '</span><span class="persona-datos"><span class="persona-nombre">' + escapar(persona.nombre) + '</span><span class="persona-puesto">' + escapar(persona.puesto || 'Asistencia') + '</span></span></li>';
+                }).join('') : '<li><span class="celda-secundaria sin-margen">Sin personal de asistencia asignados</span></li>') +
                 '</ul></div></section>' +
                 '</div>';
         }
@@ -1333,7 +1333,7 @@
         var parametros = estado.parametros;
 
         var filasPaseos = estado.paseos.length ? estado.paseos.map(function (paseo) {
-            var nombres = paseo.equipo_salvamento.map(function (persona) { return persona.nombre; });
+            var nombres = paseo.equipo_asistencia.map(function (persona) { return persona.nombre; });
             var filtro = estado.filtroPaseos.toLowerCase();
 
             if (filtro && (paseo.nombre + paseo.destino + paseo.profesor_encargado).toLowerCase().indexOf(filtro) === -1) {
@@ -1370,7 +1370,7 @@
         var personalItems = estado.personal.map(function (persona) {
             return '<li><span class="inicial-persona">' + iniciales(persona.nombre) + '</span>' +
                 '<span class="persona-datos"><span class="persona-nombre">' + escapar(persona.nombre) + '</span>' +
-                '<span class="persona-puesto">' + escapar(persona.puesto || 'Salvamento') + '</span></span>' +
+                '<span class="persona-puesto">' + escapar(persona.puesto || 'Asistencia') + '</span></span>' +
                 '<button type="button" class="boton-icono peligro" data-accion="eliminar-personal" data-id="' + persona.id + '" title="Eliminar">' + icono(ICONOS.bote) + '</button></li>';
         }).join('');
 
@@ -1389,7 +1389,7 @@
             '<div class="tarjeta-filtros"><div class="buscador">' + icono(ICONOS.lupa) +
             '<input type="search" class="control" id="busqueda-paseos" placeholder="Buscar paseo" value="' + escapar(estado.filtroPaseos) + '"></div></div></div>' +
             '<div class="tabla-envoltura"><table class="tabla tabla-compacta"><thead><tr>' +
-            '<th>Paseo</th><th class="col-derecha">Costo</th><th>Profesor a cargo</th><th>Salvamento</th><th></th>' +
+            '<th>Paseo</th><th class="col-derecha">Costo</th><th>Profesor a cargo</th><th>Asistencia</th><th></th>' +
             '</tr></thead><tbody>' + filasPaseos + '</tbody></table></div>' +
             '</section>' +
             '<section class="tarjeta">' +
@@ -1404,7 +1404,7 @@
             '<section class="tarjeta">' +
             '<div class="tarjeta-cabecera"><h3>Parámetros globales</h3></div>' +
             '<div class="tarjeta-cuerpo compacto"><div class="tarjeta-parametros">' +
-            '<div class="parametro-fila"><div><p class="celda-principal">Capacidad del autobús</p><p class="descripcion">Asientos totales, incluyendo al profesor y al comando de salvamento.</p></div>' +
+            '<div class="parametro-fila"><div><p class="celda-principal">Capacidad del autobús</p><p class="descripcion">Asientos totales, incluyendo al profesor y al personal de asistencia.</p></div>' +
             '<div class="parametro-valor"><input type="number" class="control numero" id="parametro-capacidad" min="1" value="' + parametros.capacidad_bus + '">' +
             '<button type="button" class="boton boton-borde boton-pequeno" data-accion="guardar-capacidad">Guardar</button></div></div>' +
             '<div class="parametro-fila"><div><p class="celda-principal">Asientos de personal</p><p class="descripcion">Se descuentan de la capacidad para los estudiantes.</p></div>' +
@@ -1414,7 +1414,7 @@
             '<div class="parametro-valor"><span class="parametro-fijo">Orden de inscripción</span></div></div>' +
             '</div></div></section>' +
             '<section class="tarjeta">' +
-            '<div class="tarjeta-cabecera"><h3>Personal de salvamento</h3></div>' +
+            '<div class="tarjeta-cabecera"><h3>Personal de Asistencia</h3></div>' +
             '<div class="tarjeta-cuerpo compacto">' +
             (estado.personal.length ? '<ul class="pila-personas">' + personalItems + '</ul>' : '<p class="texto-apagado nota-pequena">Aún no hay personal registrado.</p>') +
             '<div class="nuevos-nombres separado">' +
@@ -2644,7 +2644,7 @@
         }
 
         var paseo = paseoId ? estado.paseos.filter(function (item) { return item.id === paseoId; })[0] : null;
-        var seleccionados = paseo ? paseo.equipo_salvamento.map(function (persona) { return persona.id; }) : [];
+        var seleccionados = paseo ? paseo.equipo_asistencia.map(function (persona) { return persona.id; }) : [];
         estado.nuevosNombres = [];
 
         var opciones = estado.personal.map(function (persona) {
@@ -2697,7 +2697,7 @@
             '</div>' +
             '<div class="campo"><label class="campo-etiqueta" for="paseo-descripcion">Descripción</label>' +
             '<textarea class="control" id="paseo-descripcion" name="descripcion" placeholder="Actividades previstas para el paseo">' + escapar(paseo ? paseo.descripcion || '' : '') + '</textarea></div>' +
-            '<div class="campo"><span class="campo-etiqueta">Personal de comandos de salvamento</span>' +
+            '<div class="campo"><span class="campo-etiqueta">Personal de Asistencia</span>' +
             (estado.personal.length ? '<div class="selector-personal">' + opciones + '</div>' : '<p class="campo-ayuda">Todavía no hay personal registrado. Puedes escribir los nombres abajo.</p>') +
             '<div class="nuevos-nombres"><input type="text" class="control" id="paseo-nuevo-personal" placeholder="Agregar nombre del personal"><button type="button" class="boton boton-borde boton-pequeno" data-accion="agregar-nombre-personal">Agregar</button></div>' +
             '<div class="etiquetas-agregadas" id="etiquetas-personal"></div></div>' +
@@ -3247,7 +3247,7 @@
                 var nombrePersonal = $('#nuevo-personal').value.trim();
 
                 if (!nombrePersonal) {
-                    aviso('Falta el nombre', 'Escribe el nombre del personal de salvamento.', 'error');
+                    aviso('Falta el nombre', 'Escribe el nombre del personal de asistencia.', 'error');
                     return;
                 }
 

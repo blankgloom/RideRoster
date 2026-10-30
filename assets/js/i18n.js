@@ -66,7 +66,7 @@
         'Apellidos': 'Last names',
         'Asientos compactados': 'Seats compacted',
         'Asientos de personal': 'Staff seats',
-        'Asientos totales, incluyendo al profesor y al comando de salvamento.':
+        'Asientos totales, incluyendo al profesor y al personal de asistencia.':
             'Total seats, including the teacher and the safety team.',
         'Asignación de asientos': 'Seat assignment',
         'Aumenta la capacidad del bus actual para que la persona quepa.':
@@ -227,7 +227,7 @@
         'Estudiantes pasajeros': 'Student passengers',
         'Escribe el nombre: ese código no está en el padrón.':
             'Type the name: that code is not in the registry.',
-        'Escribe el nombre del personal de salvamento.':
+        'Escribe el nombre del personal de asistencia.':
             'Type the name of the safety staff member.',
         'Escribe un código: 2B07': 'Type a code: 2B07',
         'Exportar PDF': 'Export to PDF',
@@ -420,8 +420,8 @@
         'Permiso': 'Permission',
         'Permiso de salida': 'Exit permission',
         'Personal a bordo': 'Staff on board',
-        'Personal de comandos de salvamento': 'Water rescue command staff',
-        'Personal de salvamento': 'Safety staff',
+        'Personal de Asistencia': 'Water rescue command staff',
+        'Personal de Asistencia': 'Safety staff',
         'Personal del viaje': 'Trip staff',
         'Personal eliminado': 'Staff removed',
         'Personal eliminado.': 'Staff removed.',
@@ -471,7 +471,7 @@
             'RideRoster · School trip management system',
         'Salida': 'Departure',
         'Salidas realizadas': 'Departures completed',
-        'Salvamento': 'Safety',
+        'Asistencia': 'Safety',
         'Se busca por nombre, cargo o código en el catálogo de docentes.':
             'Search by name, role or code in the teacher catalog.',
         'Se borrará el viaje. Si ya tiene estudiantes o pagos, se pedirá una segunda confirmación.':
@@ -512,7 +512,7 @@
         'Sin alumnos que coincidan': 'No matching students',
         'Sin asignar': 'Unassigned',
         'Sin cargo registrado': 'No role registered',
-        'Sin comandos de salvamento asignados': 'No safety command assigned',
+        'Sin personal de asistencia asignados': 'No safety command assigned',
         'Sin encargado': 'No guardian',
         'Sin especialidad': 'No specialty',
         'Sin estudiantes': 'No students',
@@ -631,7 +631,7 @@
         'El viaje solicitado no existe.': 'The requested trip does not exist.',
         'asientos disponibles': 'available seats',
         'asientos utilizados': 'seats used',
-        'docentes y comandos de salvamento': 'teachers and safety command staff',
+        'docentes y personal de asistencia': 'teachers and safety command staff',
         'el bus vuelve a quedar lleno de forma continua.':
             'the bus becomes full again over and over.',
         'estudiantes por salida': 'students per departure',

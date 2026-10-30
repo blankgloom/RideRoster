@@ -86,7 +86,7 @@ El código sigue la estructura `[Año][Sección][Número de lista]`, con el núm
 El formato se valida en el formulario (con aviso en vivo) y en el servidor antes de registrar al estudiante.
 
 ### Asignación de asientos
-* **Plano interactivo** con la distribución 2+2 del autobús: butacas libres, ocupadas y seleccionadas, más los dos asientos reservados al docente y al comando de salvamento.
+* **Plano interactivo** con la distribución 2+2 del autobús: butacas libres, ocupadas y seleccionadas, más los dos asientos reservados al docente y al personal de asistencia.
 * **Reubicación exacta** por clic (seleccionar persona y destino) o por arrastrar y soltar: la persona queda en el asiento que se eligió, sin corrimientos hacia el final del bus.
 * **Cerrar huecos**: completa los asientos vacíos intermedios y vuelve a llenar el bus de forma continua (1, 2, 3…).
 * **Generador de listado** que aplica las preferencias:
@@ -124,8 +124,8 @@ Después de marcar el viaje como finalizado, el botón **Generar listado** abre 
 * **De aquí se elige el profesor de cada paseo**: el formulario de Administración ofrece un menú con los profesores activos en lugar de texto libre.
 
 ### Administración
-* Catálogo de **paseos**: nombre, destino, costo por persona, profesor a cargo elegido del catálogo de profesores y personal de comandos de salvamento.
-* **Personal de salvamento** reutilizable entre paseos, con alta y baja desde la misma vista.
+* Catálogo de **paseos**: nombre, destino, costo por persona, profesor a cargo elegido del catálogo de profesores y personal de asistencia.
+* **Personal de Asistencia** reutilizable entre paseos, con alta y baja desde la misma vista.
 * **Programación de viajes** a partir de un paseo, indicando día, horarios y capacidad del bus. Los viajes programados aparecen de inmediato en la pestaña Inicio.
 * **Parámetros globales**: capacidad predeterminada del autobús, asientos reservados al personal y orden de las listas de pasajeros.
 * **Flotas y salidas**: los buses que ejecutan el mismo paseo en la misma fecha y hora se agrupan para redistribuir pasajeros entre ellos.
@@ -146,7 +146,7 @@ Después de marcar el viaje como finalizado, el botón **Generar listado** abre 
 
 | Parámetro | Valor por defecto | Descripción |
 | --- | --- | --- |
-| `capacidad_bus` | 55 | Asientos totales del autobús, incluyendo al profesor y al comando de salvamento. |
+| `capacidad_bus` | 55 | Asientos totales del autobús, incluyendo al profesor y al personal de asistencia. |
 | `asientos_personal` | 2 | Asientos que se descuentan de la capacidad para los estudiantes. |
 | `orden_pasajeros` | inscripción | Los pasajeros siempre se listan en el orden en que se van agregando. |
 

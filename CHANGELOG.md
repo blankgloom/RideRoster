@@ -5,6 +5,19 @@ Todas las novedades de RideRoster se registran en este archivo.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el
 versionado se basa en [Semantic Versioning](https://semver.org/lang/es/).
 
+## [1.2.0] - 2026-10-30
+
+### Añadido
+- **Compañeros de viaje con encargado individual**: cada compañero puede marcarse con
+  encargado mediante un checkbox en su chip; cuenta como 2 pasajes para costo y pago.
+- **Enumeración de compañeros** en la lista de pasajeros y el listado de la salida.
+
+### Corregido
+- Los compañeros de viaje ahora se visualizan en la lista de pasajeros y en el
+  listado de la salida, con su nombre.
+- El total recaudado suma el costo de los compañeros.
+- Error `count()` sobre valor nulo al cargar la información.
+
 ## [1.1.1] - 2026-10-30
 
 ### Cambiado

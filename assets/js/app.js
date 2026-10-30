@@ -2526,10 +2526,30 @@
 
         var bloques = datos.buses.map(function (bus) {
             // Pagados al 100% primero, luego los pagos parciales y al final los pendientes.
-            var ordenados = bus.lista.map(function (pasajero, indice) {
+            // Expandir cada pasajero con sus compañeros de viaje para el listado.
+            var expandidos = [];
+            bus.lista.forEach(function (pasajero, indice) {
                 var prioridad = pasajero.pendiente <= 0 ? 0 : (pasajero.pagado > 0 ? 1 : 2);
-                return { pasajero: pasajero, indice: indice, prioridad: prioridad };
-            }).sort(function (a, b) {
+                expandidos.push({ pasajero: pasajero, indice: indice, prioridad: prioridad, principal: true });
+                (pasajero.companeros || []).forEach(function (codigo, ci) {
+                    expandidos.push({
+                        pasajero: {
+                            nombre: codigo,
+                            codigo: codigo,
+                            encargado: null,
+                            asiento: pasajero.asiento,
+                            costo: datos.salida.costo_persona,
+                            pagado: 0,
+                            pendiente: 0
+                        },
+                        indice: indice + (ci + 1) / 100,
+                        prioridad: prioridad,
+                        principal: false,
+                        principalNombre: pasajero.nombre
+                    });
+                });
+            });
+            var ordenados = expandidos.sort(function (a, b) {
                 return a.prioridad - b.prioridad || a.indice - b.indice;
             });
 
@@ -2541,8 +2561,10 @@
 
                 contador++;
                 totalEstudiantes++;
-                recaudadoBus += pasajero.pagado;
-                pendienteBus += pasajero.pendiente;
+                if (item.principal) {
+                    recaudadoBus += pasajero.pagado;
+                    pendienteBus += pasajero.pendiente;
+                }
 
                 var pastillaPago = item.prioridad === 0
                     ? '<span class="pastilla exito sin-punto">Pagado</span>'
@@ -2553,6 +2575,7 @@
                 return '<tr>' +
                     '<td><span class="orden-inscripcion">' + contador + '</span></td>' +
                     '<td><span class="celda-principal">' + escapar(pasajero.nombre) + '</span>' +
+                    (item.principal ? '' : '<span class="celda-secundaria">Compañero de ' + escapar(item.principalNombre) + '</span>') +
                     '<span class="celda-secundaria">' + escapar(pasajero.codigo) +
                     (pasajero.asiento ? ' · asiento ' + pasajero.asiento : ' · sin asignar') + '</span></td>' +
                     '<td>' + (pasajero.encargado ? escapar(pasajero.encargado) : '<span class="sin-dato">Sin encargado</span>') + '</td>' +

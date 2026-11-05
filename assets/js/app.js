@@ -1140,9 +1140,7 @@
             '<div class="tarjeta-cabecera"><div><h2>Lista de pasajeros</h2><p>Se muestran en el orden en que fueron inscritos</p></div>' +
             '<div class="tarjeta-filtros"><div class="buscador">' + icono(ICONOS.lupa) +
             '<input type="search" class="control" id="busqueda-pasajeros" placeholder="Buscar por nombre, código o encargado" value="' + escapar(estado.busquedaPasajeros) + '"></div>' +
-            (viaje ? '<button type="button" class="boton boton-borde boton-pequeno" data-accion="cobrar-todos" title="Registra el pago de todos los que aun deben"' +
-            (viaje.pendiente > 0 ? '' : ' disabled') + '>' + icono(ICONOS.cobrar) + 'Cobrar pendientes</button>' +
-            '<button type="button" class="boton boton-primario boton-pequeno" data-accion="abrir-alta" data-id="' + viaje.id + '">' +
+            (viaje ? '<button type="button" class="boton boton-primario boton-pequeno" data-accion="abrir-alta" data-id="' + viaje.id + '">' +
             icono(ICONOS.mas) + 'Agregar estudiante</button>' : '') + '</div></div>' +
             '<div class="tabla-envoltura tabla-alta"><table class="tabla"><thead><tr>' +
             '<th class="col-orden">Orden</th><th>Estudiante</th><th>Código</th><th>Encargado</th><th class="col-derecha">Costo</th><th class="col-derecha">Pagado</th><th></th>' +
@@ -2673,7 +2671,8 @@
             '<strong>' + escapar(datos.salida.nombre) + '</strong>' +
             '<span>' + escapar(datos.salida.destino) + ' · ' + escapar(fechaCorta(datos.salida.fecha)) +
             ' · salida ' + escapar(datos.salida.hora_salida) + ' · ' + datos.buses.length +
-            ' bus(es) · ' + totalEstudiantes + ' estudiantes</span></div>' +
+            ' bus(es) · ' + totalEstudiantes + ' estudiantes</span>' +
+            '<a class="boton boton-primario boton-pequeno" href="listado.php?viaje=' + datos.buses[0].id + '&todos=1" target="_blank" rel="noopener">Exportar todos los buses</a></div>' +
             '<div class="listado-salida">' + bloques + '</div>' +
             '<div class="listado-salida-total">' +
             '<span>Total recaudado <strong class="numero">' + dinero(totalRecaudado) + '</strong></span>' +
@@ -3207,26 +3206,6 @@
             case 'cobrar-pasajero':
                 estado.enfocarCobro = Number(id);
                 abrirModalViaje(viajeIdActual(), false);
-                break;
-
-            case 'cobrar-todos':
-                confirmar(
-                    'Cobrar lo pendiente',
-                    'Se registrará un pago por cada estudiante que aún no ha pagado lo que le corresponde, incluyendo el costo de sus acompañantes. Los pagos ya realizados no se tocan.',
-                    'Registrar cobros',
-                    'confirmar-cobrar-todos',
-                    { id: viajeIdActual() }
-                );
-                break;
-
-            case 'confirmar-cobrar-todos':
-                apiPost('pagos', { viaje_id: Number(id) }, 'cobrar_pendientes').then(function (respuesta) {
-                    cerrarModal();
-                    aviso('Cobros registrados', respuesta.mensaje || 'Se registraron los cobros pendientes.', 'exito');
-                    cargarPanel();
-                }).catch(function (error) {
-                    aviso('No se pudieron registrar', error.message, 'error');
-                });
                 break;
 
             case 'ver-viaje':

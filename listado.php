@@ -1,10 +1,11 @@
 <?php
-
 declare(strict_types=1);
 
 require_once __DIR__ . '/app/bootstrap.php';
 
 $viajeId = (int) ($_GET['viaje'] ?? 0);
+$todos = isset($_GET['todos']);
+
 $viaje = detalle_viaje($viajeId);
 
 if ($viaje === null) {
@@ -12,17 +13,18 @@ if ($viaje === null) {
     exit('El viaje solicitado no existe.');
 }
 
-// El listado de abordaje se arma sobre el plano de asientos. Si nadie lo ha generado
-// todavía y sí hay estudiantes inscritos, se genera aquí: de lo contrario la hoja
-// saldría vacía aunque el viaje esté lleno.
-if ((int) $viaje['pasajeros'] > 0 && filas_de_asientos($viajeId) === []) {
-    generar_asientos($viajeId);
+if ($todos) {
+    $salida = salida_de_viaje($viajeId);
+    $buses = $salida !== null ? buses_de_salida($salida) : [$viaje];
+} else {
+    $buses = [$viaje];
 }
 
-$listado = listado_aboarding($viajeId, true);
-$total = count($listado);
-$estudiantes = count(array_filter($listado, static fn (array $fila): bool => $fila['tipo'] === ROL_ESTUDIANTE));
-$tutores = $total - $estudiantes;
+foreach ($buses as $bus) {
+    if ((int) $bus['pasajeros'] > 0 && filas_de_asientos((int) $bus['id']) === []) {
+        generar_asientos((int) $bus['id']);
+    }
+}
 
 ?><!DOCTYPE html>
 <html lang="es">
@@ -38,6 +40,12 @@ $tutores = $total - $estudiantes;
     <link rel="stylesheet" href="assets/css/listado.css?v=<?= filemtime(__DIR__ . '/assets/css/listado.css') ?>">
 </head>
 <body class="pagina-listado">
+<?php foreach ($buses as $bus):
+    $listado = listado_aboarding((int) $bus['id'], true);
+    $total = count($listado);
+    $estudiantes = count(array_filter($listado, static fn (array $fila): bool => $fila['tipo'] === ROL_ESTUDIANTE));
+    $tutores = $total - $estudiantes;
+?>
     <div class="hoja">
         <header class="hoja-cabecera">
             <div class="hoja-institucion">
@@ -46,17 +54,17 @@ $tutores = $total - $estudiantes;
             </div>
             <div class="hoja-titulo">
                 <h1>Listado de abordaje</h1>
-                <p><?= htmlspecialchars($viaje['nombre']) ?> · <?= htmlspecialchars($viaje['destino']) ?></p>
+                <p><?= htmlspecialchars($bus['nombre']) ?> · <?= htmlspecialchars($bus['destino']) ?></p>
             </div>
         </header>
 
         <dl class="hoja-datos">
-            <div><dt>Fecha</dt><dd><?= htmlspecialchars(date('d/m/Y', strtotime($viaje['fecha']))) ?></dd></div>
-            <div><dt>Salida</dt><dd class="numero"><?= htmlspecialchars($viaje['hora_salida']) ?></dd></div>
-            <div><dt>Regreso</dt><dd class="numero"><?= htmlspecialchars($viaje['hora_retorno'] ?: 'Por definir') ?></dd></div>
-            <div><dt>Autobús</dt><dd class="numero"><?= (int) $viaje['capacidad_bus'] ?> asientos</dd></div>
-            <div><dt>Profesor a cargo</dt><dd><?= htmlspecialchars($viaje['profesor_encargado']) ?></dd></div>
-            <div><dt>Costo por persona</dt><dd class="numero">$<?= number_format((float) $viaje['costo_persona'], 2) ?></dd></div>
+            <div><dt>Fecha</dt><dd><?= htmlspecialchars(date('d/m/Y', strtotime($bus['fecha']))) ?></dd></div>
+            <div><dt>Salida</dt><dd class="numero"><?= htmlspecialchars($bus['hora_salida']) ?></dd></div>
+            <div><dt>Regreso</dt><dd class="numero"><?= htmlspecialchars($bus['hora_retorno'] ?: 'Por definir') ?></dd></div>
+            <div><dt>Autobús</dt><dd class="numero"><?= (int) $bus['capacidad_bus'] ?> asientos</dd></div>
+            <div><dt>Profesor a cargo</dt><dd><?= htmlspecialchars($bus['profesor_encargado']) ?></dd></div>
+            <div><dt>Costo por persona</dt><dd class="numero">$<?= number_format((float) $bus['costo_persona'], 2) ?></dd></div>
         </dl>
 
         <table class="hoja-tabla">
@@ -98,11 +106,12 @@ $tutores = $total - $estudiantes;
             <p><?= $estudiantes ?> estudiantes y <?= $tutores ?> acompañantes · <?= $total ?> personas en total</p>
             <p>Elaborado por la colecturía del Instituto Nacional de Apopa</p>
         </footer>
+    </div>
+<?php endforeach; ?>
 
-        <div class="hoja-acciones">
-            <button type="button" class="boton boton-primario" onclick="window.print()">Imprimir o guardar en PDF</button>
-            <a class="boton boton-borde" href="index.php">Volver al sistema</a>
-        </div>
+    <div class="hoja-acciones">
+        <button type="button" class="boton boton-primario" onclick="window.print()">Imprimir o guardar en PDF</button>
+        <a class="boton boton-borde" href="index.php">Volver al sistema</a>
     </div>
 </body>
 </html>

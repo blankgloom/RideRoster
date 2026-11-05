@@ -50,6 +50,7 @@ $versionIcono = filemtime(__DIR__ . '/assets/img/icono-cabecera.png');
                 <button type="button" class="pestana" data-vista="profesores" aria-selected="false">Profesores</button>
                 <button type="button" class="pestana" data-vista="administracion" aria-selected="false">Administración</button>
                 <button type="button" class="pestana" data-vista="estadisticas" aria-selected="false">Estadísticas</button>
+                <button type="button" class="pestana" data-vista="vetados" aria-selected="false">Vetados</button>
             </nav>
 
             <div class="cabecera-lateral">

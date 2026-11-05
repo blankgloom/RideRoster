@@ -25,7 +25,7 @@ function formato_dinero(float $valor): string
  */
 function consulta_viajes(): string
 {
-    return 'SELECT v.id, v.paseo_id, v.fecha, v.hora_salida, v.hora_retorno, v.capacidad_bus, v.estado,
+    return 'SELECT v.id, v.paseo_id, v.fecha, v.hora_salida, v.hora_retorno, v.capacidad_bus, v.profesor_id, v.asientos_profesores, v.estado,
                    v.boletos_cerrados, v.boletos_cerrados_en, v.notas,
                    p.nombre AS paseo_nombre, p.destino, p.costo_persona, p.profesor_encargado,
                    (SELECT COUNT(*) FROM pasajeros ps WHERE ps.viaje_id = v.id) AS pasajeros,
@@ -69,8 +69,10 @@ function normalizar_viaje(array $fila): array
         'fecha'             => $fila['fecha'],
         'hora_salida'       => substr((string) $fila['hora_salida'], 0, 5),
         'hora_retorno'      => $fila['hora_retorno'] ? substr((string) $fila['hora_retorno'], 0, 5) : null,
-        'capacidad_bus'     => $capacidad,
-        'asientos_personal' => $reservado,
+        'capacidad_bus'        => $capacidad,
+        'profesor_id'          => isset($fila['profesor_id']) && $fila['profesor_id'] !== null ? (int) $fila['profesor_id'] : null,
+        'asientos_profesores'  => (int) ($fila['asientos_profesores'] ?? 1),
+        'asientos_personal'    => $reservado,
         'cupos_disponibles' => $cupos,
         'pasajeros'         => $pasajeros,
         'acompanantes'      => $acompanantes,

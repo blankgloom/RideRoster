@@ -502,6 +502,8 @@ try {
                 $salida  = texto($datos, 'hora_salida');
                 $retorno = texto($datos, 'hora_retorno');
                 $capacidad = (int) numero($datos, 'capacidad_bus', capacidad_predeterminada());
+                $profesorId = (int) ($datos['profesor_id'] ?? 0);
+                $asientosProfesores = (int) numero($datos, 'asientos_profesores', 1);
 
                 if ($paseoId <= 0) {
                     responder_error('paseo_requerido', 'Selecciona el paseo que se va a realizar.');
@@ -515,16 +517,18 @@ try {
                     responder_error('capacidad_invalida', 'La capacidad debe dejar al menos un asiento para pasajeros.');
                 }
 
-                $sentencia = db()->prepare('INSERT INTO viajes (paseo_id, fecha, hora_salida, hora_retorno, capacidad_bus, estado, notas)
-                                            VALUES (:paseo, :fecha, :salida, :retorno, :capacidad, :estado, :notas)');
+                $sentencia = db()->prepare('INSERT INTO viajes (paseo_id, fecha, hora_salida, hora_retorno, capacidad_bus, profesor_id, asientos_profesores, estado, notas)
+                                            VALUES (:paseo, :fecha, :salida, :retorno, :capacidad, :profesor, :asientos_prof, :estado, :notas)');
                 $sentencia->execute([
-                    ':paseo'     => $paseoId,
-                    ':fecha'     => $fecha,
-                    ':salida'    => $salida . ':00',
-                    ':retorno'   => $retorno !== '' ? $retorno . ':00' : null,
-                    ':capacidad' => $capacidad,
-                    ':estado'    => 'programado',
-                    ':notas'     => texto($datos, 'notas') !== '' ? texto($datos, 'notas') : null,
+                    ':paseo'         => $paseoId,
+                    ':fecha'         => $fecha,
+                    ':salida'        => $salida . ':00',
+                    ':retorno'       => $retorno !== '' ? $retorno . ':00' : null,
+                    ':capacidad'     => $capacidad,
+                    ':profesor'      => $profesorId > 0 ? $profesorId : null,
+                    ':asientos_prof' => $asientosProfesores > 0 ? $asientosProfesores : 1,
+                    ':estado'        => 'programado',
+                    ':notas'         => texto($datos, 'notas') !== '' ? texto($datos, 'notas') : null,
                 ]);
 
                 $viajeId = (int) db()->lastInsertId();
@@ -542,6 +546,8 @@ try {
                 $salida    = texto($datos, 'hora_salida', $detalle['hora_salida']);
                 $retorno   = texto($datos, 'hora_retorno', (string) $detalle['hora_retorno']);
                 $capacidad = (int) numero($datos, 'capacidad_bus', $detalle['capacidad_bus']);
+                $profesorId = array_key_exists('profesor_id', $datos) ? (int) $datos['profesor_id'] : $detalle['profesor_id'];
+                $asientosProfesores = array_key_exists('asientos_profesores', $datos) ? (int) $datos['asientos_profesores'] : $detalle['asientos_profesores'];
 
                 if ($capacidad < $detalle['ocupados']) {
                     responder_error(
@@ -552,15 +558,18 @@ try {
 
                 $sentencia = db()->prepare('UPDATE viajes
                                             SET fecha = :fecha, hora_salida = :salida, hora_retorno = :retorno,
-                                                capacidad_bus = :capacidad, notas = :notas
+                                                capacidad_bus = :capacidad, profesor_id = :profesor,
+                                                asientos_profesores = :asientos_prof, notas = :notas
                                             WHERE id = :id');
                 $sentencia->execute([
-                    ':fecha'     => $fecha,
-                    ':salida'    => $salida . ':00',
-                    ':retorno'   => $retorno !== '' ? $retorno . ':00' : null,
-                    ':capacidad' => $capacidad,
-                    ':notas'     => texto($datos, 'notas') !== '' ? texto($datos, 'notas') : null,
-                    ':id'        => $id,
+                    ':fecha'         => $fecha,
+                    ':salida'        => $salida . ':00',
+                    ':retorno'       => $retorno !== '' ? $retorno . ':00' : null,
+                    ':capacidad'     => $capacidad,
+                    ':profesor'      => $profesorId > 0 ? $profesorId : null,
+                    ':asientos_prof' => $asientosProfesores > 0 ? $asientosProfesores : 1,
+                    ':notas'         => texto($datos, 'notas') !== '' ? texto($datos, 'notas') : null,
+                    ':id'            => $id,
                 ]);
 
                 responder_ok(detalle_viaje($id), ['mensaje' => 'Viaje actualizado.']);
@@ -580,6 +589,24 @@ try {
                 responder_ok(detalle_viaje($id), [
                     'mensaje' => 'Los boletos quedaron cerrados: ya no se pueden inscribir más estudiantes.',
                 ]);
+            }
+
+            if ($metodo === 'POST' && $accion === 'reabrir') {
+                $detalle = detalle_viaje($id);
+                if ($detalle === null) {
+                    responder_error('no_encontrado', 'El viaje solicitado no existe.', 404);
+                }
+                $fecha = texto($datos, 'fecha', $detalle['fecha']);
+                $borrar = !empty($datos['borrar']);
+                if ($borrar) {
+                    db()->prepare('DELETE FROM pagos WHERE viaje_id = :id')->execute([':id' => $id]);
+                    db()->prepare('DELETE FROM asientos WHERE viaje_id = :id')->execute([':id' => $id]);
+                    db()->prepare('DELETE FROM pasajeros WHERE viaje_id = :id')->execute([':id' => $id]);
+                    db()->prepare('DELETE FROM companeros WHERE pasajero_id NOT IN (SELECT id FROM pasajeros)')->execute();
+                }
+                db()->prepare('UPDATE viajes SET fecha = :fecha, estado = :estado WHERE id = :id')
+                    ->execute([':fecha' => $fecha, ':estado' => 'programado', ':id' => $id]);
+                responder_ok(detalle_viaje($id), ['mensaje' => 'Viaje reabierto.']);
             }
 
             if ($metodo === 'POST' && $accion === 'estado') {
@@ -781,6 +808,15 @@ try {
 
                 if ($alumno !== null && $nombre === '') {
                     $nombre = (string) $alumno['nombre'];
+                }
+
+                // Validación de vetados
+                if ($alumno !== null) {
+                    $vetado = db()->prepare('SELECT id FROM vetados WHERE alumno_id = :id');
+                    $vetado->execute([':id' => (int) $alumno['id']]);
+                    if ($vetado->fetch()) {
+                        responder_error('estudiante_vetado', 'Este estudiante tiene prohibido ir a salidas, está vetado.', 409);
+                    }
                 }
 
                 if ($nombre === '') {
@@ -1772,6 +1808,45 @@ try {
             }
 
             responder_error('ruta_desconocida', 'Acción no disponible para parámetros.');
+            break;
+
+        case 'vetados':
+            if ($metodo === 'GET') {
+                $filas = db()->query('SELECT v.id, v.alumno_id, v.motivo, v.fecha, a.codigo, a.nombre
+                                      FROM vetados v
+                                      INNER JOIN alumnos a ON a.id = v.alumno_id
+                                      ORDER BY a.nombre ASC')->fetchAll();
+                foreach ($filas as &$f) {
+                    $f['id'] = (int) $f['id'];
+                    $f['alumno_id'] = (int) $f['alumno_id'];
+                }
+                responder_ok($filas);
+            }
+
+            if ($metodo === 'POST' && $accion === '') {
+                $codigo = texto($datos, 'codigo');
+                $alumno = alumno_por_codigo($codigo);
+                if ($alumno === null) {
+                    responder_error('no_encontrado', 'El alumno no existe en el padrón.', 404);
+                }
+                $alumnoId = (int) $alumno['id'];
+                $existe = db()->prepare('SELECT id FROM vetados WHERE alumno_id = :id');
+                $existe->execute([':id' => $alumnoId]);
+                if ($existe->fetch()) {
+                    responder_error('ya_vetado', 'El alumno ya está en la lista de vetados.', 409);
+                }
+                db()->prepare('INSERT INTO vetados (alumno_id, motivo, fecha) VALUES (:a, :m, :f)')
+                    ->execute([':a' => $alumnoId, ':m' => texto($datos, 'motivo') ?: null, ':f' => date('Y-m-d')]);
+                responder_ok(null, ['mensaje' => 'Estudiante agregado a vetados.']);
+            }
+
+            if ($metodo === 'POST' && $accion === 'eliminar') {
+                $id = (int) ($datos['id'] ?? $id);
+                db()->prepare('DELETE FROM vetados WHERE id = :id')->execute([':id' => $id]);
+                responder_ok(null, ['mensaje' => 'Estudiante removido de vetados.']);
+            }
+
+            responder_error('ruta_desconocida', 'Acción no disponible para vetados.');
             break;
 
         default:

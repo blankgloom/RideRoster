@@ -17,6 +17,7 @@
         historial: [],
         paseos: [],
         personal: [],
+        vetados: null,
         busquedaPasajeros: '',
         busquedaPaseos: '',
         viajeModalId: null,
@@ -532,6 +533,8 @@
             contenedor.innerHTML = vistaAlumnos();
         } else if (estado.vista === 'profesores') {
             contenedor.innerHTML = vistaProfesores();
+        } else if (estado.vista === 'vetados') {
+            contenedor.innerHTML = vistaVetados();
         } else {
             contenedor.innerHTML = vistaInicio();
         }
@@ -1759,6 +1762,45 @@
             '</div></div>';
     }
 
+    function vistaVetados() {
+        var datos = estado.vetados;
+
+        var encabezado = '<div class="encabezado-vista">' +
+            '<div><h1>Vetados</h1><p>Estudiantes con prohibición de salida.</p></div>' +
+            '<div class="acciones-vista"><button type="button" class="boton boton-borde boton-pequeno" data-accion="recargar-vetados">' + icono(ICONOS.refrescar) + 'Actualizar</button></div>' +
+            '</div>';
+
+        if (!datos) {
+            return '<div class="vista">' + encabezado +
+                '<div class="cargando"><span class="cargando-barra"></span><p>Cargando vetados</p></div></div>';
+        }
+
+        var filas = datos.length ? datos.map(function (v) {
+            return '<tr><td>' + escapar(v.codigo) + '</td><td>' + escapar(v.nombre) + '</td><td>' + escapar(v.motivo || '—') + '</td><td>' + escapar(fechaCorta(v.fecha)) + '</td>' +
+                '<td class="columna-acciones"><button type="button" class="boton-icono peligro" data-accion="quitar-vetado" data-id="' + v.id + '" title="Quitar">Quitar</button></td></tr>';
+        }).join('') : '<tr><td colspan="5"><div class="estado-vacio"><strong>Sin vetados</strong><p>No hay estudiantes vetados.</p></div></td></tr>';
+
+        var contenido = '<div class="vista">' + encabezado +
+            '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Agregar vetado</h2></div>' +
+            '<div class="tarjeta-cuerpo compacto"><form class="formulario" id="form-vetado">' +
+            '<div class="campo"><label class="campo-etiqueta">Código del alumno</label><input class="control" id="vetado-codigo" placeholder="2B03"></div>' +
+            '<div class="campo"><label class="campo-etiqueta">Motivo</label><input class="control" id="vetado-motivo" placeholder="Motivo"></div>' +
+            '<div class="grupo-botones inicio"><button type="button" class="boton boton-primario" data-accion="agregar-vetado">Agregar</button></div>' +
+            '</form></div></section>' +
+            '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Lista de vetados</h2></div>' +
+            '<div class="tabla-envoltura"><table class="tabla"><thead><tr><th>Código</th><th>Alumno</th><th>Motivo</th><th>Fecha</th><th></th></tr></thead><tbody>' + filas + '</tbody></table></div></section>' +
+            '</div>';
+        return contenido;
+    }
+
+    function cargarVetados(limpiar) {
+        if (limpiar) { estado.vetados = null; render(); }
+        return apiGet('vetados').then(function (r) {
+            estado.vetados = r.datos;
+            if (estado.vista === 'vetados') { render(); }
+        }).catch(function (e) { estado.vetados = []; if (estado.vista === 'vetados') render(); });
+    }
+
     function abrirModalAlumno(alumnoId) {
         var alumno = null;
 
@@ -2341,6 +2383,15 @@
             '<input type="number" class="control numero" id="viaje-capacidad" name="capacidad_bus" min="' + viaje.ocupados + '" value="' + viaje.capacidad_bus + '">' +
             '<span class="campo-ayuda">Quedan ' + viaje.cupos_disponibles + ' cupos. Se cuentan ' + viaje.pasajeros + ' estudiantes, ' +
             viaje.acompanantes + ' acompañantes y ' + viaje.asientos_personal + ' asientos de personal.</span></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="viaje-profesor">Profesor encargado del bus</label>' +
+            '<select class="control" id="viaje-profesor" name="profesor_id">' +
+            '<option value="">Sin asignar</option>' +
+            (estado.profesores || []).filter(function (p) { return p.activo; }).map(function (p) {
+                return '<option value="' + p.id + '"' + (viaje.profesor_id === p.id ? ' selected' : '') + '>' + escapar(p.nombres + ' ' + p.apellidos) + '</option>';
+            }).join('') +
+            '</select></div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="viaje-asientos-prof">Cupos de profesores por bus</label>' +
+            '<input type="number" class="control numero" id="viaje-asientos-prof" name="asientos_profesores" min="0" value="' + (viaje.asientos_profesores || 1) + '"></div>' +
             '<div class="campo ancho-completo"><label class="campo-etiqueta" for="viaje-notas">Notas para la colecturía</label>' +
             '<textarea class="control" id="viaje-notas" name="notas" placeholder="Indicaciones especiales del viaje">' + escapar(viaje.notas || '') + '</textarea></div>' +
             '<div class="campo ancho-completo"><div class="grupo-botones">' +
@@ -2379,7 +2430,7 @@
         if (viaje.estado === 'finalizado') {
             accionesPie = '<button type="button" class="boton boton-primario" data-accion="generar-listado-salida" data-id="' + viaje.id + '">' +
                 icono(ICONOS.lista) + 'Ver listado de estudiantes</button>' +
-                '<button type="button" class="boton boton-secundario" data-accion="cambiar-estado" data-estado="programado">Reabrir viaje</button>';
+                '<button type="button" class="boton boton-secundario" data-accion="reabrir-viaje" data-id="' + viaje.id + '">Reabrir viaje</button>';
         } else if (viaje.boletos_cerrados) {
             accionesPie = '<button type="button" class="boton boton-primario" data-accion="generar-listado-salida" data-id="' + viaje.id + '">' +
                 icono(ICONOS.lista) + 'Ver listado de estudiantes</button>' +
@@ -3124,6 +3175,46 @@
         switch (accion) {
             case 'recargar':
                 cargarPanel('Actualizando la información de la colecturía');
+                break;
+
+            case 'agregar-vetado':
+                var codV = ($('#vetado-codigo') || {}).value || '';
+                var motV = ($('#vetado-motivo') || {}).value || '';
+                if (!codV.trim()) { aviso('Falta el código', 'Escribe el código del alumno.', 'error'); break; }
+                apiPost('vetados', { codigo: codV.trim(), motivo: motV.trim() }).then(function () {
+                    cargarVetados(true);
+                    aviso('Agregado', 'Estudiante agregado a vetados.', 'exito');
+                }).catch(function (e) { aviso('Error', e.message, 'error'); });
+                break;
+
+            case 'reabrir-viaje':
+                var idR = Number(disparador.getAttribute('data-id'));
+                var fechaR = window.prompt('Nueva fecha de reapertura (AAAA-MM-DD):', new Date().toISOString().slice(0, 10));
+                if (!fechaR) { break; }
+                var borrar = confirm('¿Desea borrar todos los datos actuales del viaje?');
+                if (borrar) {
+                    if (!confirm('Confirmación final: se eliminarán pasajeros, pagos y asientos. ¿Continuar?')) { break; }
+                }
+                apiPost('viajes', { fecha: fechaR, borrar: borrar }, 'reabrir', idR).then(function (r) {
+                    estado.viajeModal = r.datos;
+                    pintarModalViaje();
+                    cargarPanel(true);
+                    aviso('Reabierto', 'El viaje se reabrió.', 'exito');
+                }).catch(function (e) { aviso('Error', e.message, 'error'); });
+                break;
+
+            case 'quitar-vetado':
+                var idVetado = Number(disparador.getAttribute('data-id'));
+                if (!confirm('¿Quitar a este estudiante de vetados?')) { break; }
+                if (!confirm('Confirmación final: ¿seguro que desea removerlo?')) { break; }
+                apiPost('vetados', { id: idVetado }, 'eliminar').then(function () {
+                    cargarVetados(true);
+                    aviso('Removido', 'Estudiante removido de vetados.', 'exito');
+                }).catch(function (e) { aviso('Error', e.message, 'error'); });
+                break;
+
+            case 'recargar-vetados':
+                cargarVetados(true);
                 break;
 
             case 'elegir-profesor':
@@ -4011,6 +4102,10 @@
 
         if (vista === 'profesores') {
             cargarProfesores(false);
+        }
+
+        if (vista === 'vetados') {
+            cargarVetados(false);
         }
 
         render();

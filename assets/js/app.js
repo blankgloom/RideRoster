@@ -2672,7 +2672,7 @@
             '<span>' + escapar(datos.salida.destino) + ' · ' + escapar(fechaCorta(datos.salida.fecha)) +
             ' · salida ' + escapar(datos.salida.hora_salida) + ' · ' + datos.buses.length +
             ' bus(es) · ' + totalEstudiantes + ' estudiantes</span>' +
-            '<a class="boton boton-primario boton-pequeno" href="listado.php?viaje=' + datos.buses[0].id + '&todos=1" target="_blank" rel="noopener">Exportar todos los buses</a></div>' +
+            '<a class="boton boton-primario boton-pequeno" href="listado.php?viaje=' + datos.buses[0].id + '&todos=1&auto=1" target="_blank" rel="noopener">Exportar PDF General</a></div>' +
             '<div class="listado-salida">' + bloques + '</div>' +
             '<div class="listado-salida-total">' +
             '<span>Total recaudado <strong class="numero">' + dinero(totalRecaudado) + '</strong></span>' +

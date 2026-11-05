@@ -113,5 +113,8 @@ foreach ($buses as $bus) {
         <button type="button" class="boton boton-primario" onclick="window.print()">Imprimir o guardar en PDF</button>
         <a class="boton boton-borde" href="index.php">Volver al sistema</a>
     </div>
+<?php if (isset($_GET['auto'])): ?>
+    <script>window.addEventListener('load', function () { window.print(); });</script>
+<?php endif; ?>
 </body>
 </html>

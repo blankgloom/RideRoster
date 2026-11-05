@@ -1852,15 +1852,19 @@ try {
         case 'reportes':
             if ($metodo === 'GET') {
                 // Viajes realizados
-                $viajes = db()->query('SELECT v.id, p.nombre, p.destino, v.fecha, v.recaudado, v.personas, v.pasajeros
+                $viajes = db()->query('SELECT v.id, p.nombre, p.destino, v.fecha,
+                    (SELECT COALESCE(SUM(monto),0) FROM pagos pg WHERE pg.viaje_id = v.id) AS recaudado,
+                    (SELECT COUNT(*) FROM pasajeros ps WHERE ps.viaje_id = v.id) AS pasajeros,
+                    (SELECT COUNT(*) FROM pasajeros ps WHERE ps.viaje_id = v.id AND ps.encargado IS NOT NULL AND CHAR_LENGTH(ps.encargado)>0) AS acompanantes
                     FROM viajes v INNER JOIN paseos p ON p.id = v.paseo_id
                     WHERE v.estado = "finalizado" OR v.fecha < CURDATE()
                     ORDER BY v.fecha DESC LIMIT 50')->fetchAll();
                 foreach ($viajes as &$v) {
                     $v['id'] = (int) $v['id'];
                     $v['recaudado'] = (float) $v['recaudado'];
-                    $v['personas'] = (int) $v['personas'];
                     $v['pasajeros'] = (int) $v['pasajeros'];
+                    $v['acompanantes'] = (int) $v['acompanantes'];
+                    $v['personas'] = $v['pasajeros'] + $v['acompanantes'];
                 }
 
                 // Vetados por sección

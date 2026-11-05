@@ -2222,9 +2222,12 @@
                 '</div></div>';
         }
 
+        var contadorPasajeros = 0;
         var filas = viaje.pasajeros_lista.length ? viaje.pasajeros_lista.map(function (pasajero) {
+            contadorPasajeros++;
+            var ordenPrincipal = contadorPasajeros;
             var filaPrincipal = '<tr>' +
-                '<td><span class="orden-inscripcion">' + pasajero.orden + '</span></td>' +
+                '<td><span class="orden-inscripcion">' + ordenPrincipal + '</span></td>' +
                 '<td><span class="celda-principal">' + escapar(pasajero.nombre) + '</span>' +
                 (pasajero.encargado ? '<span class="celda-secundaria">Encargado: ' + escapar(pasajero.encargado) + '</span>' : '') +
                 (pasajero.duplicado ? '<span class="pastilla error sin-punto linea">Código repetido</span>' : '') +

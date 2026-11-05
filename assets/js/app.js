@@ -730,6 +730,20 @@
             ? 'Acompañante de ' + ocupante.acompanado_de
             : ocupante.nombre + (ocupante.codigo ? ' · ' + ocupante.codigo : '');
 
+        var esDestinoIntercambio = estado.asientoSeleccionado
+            && !(ocupante.pasajero_id === estado.asientoSeleccionado.pasajero_id
+                && ocupante.tipo === estado.asientoSeleccionado.tipo);
+
+        if (esDestinoIntercambio) {
+            return '<button type="button" class="' + clases + '" data-accion="soltar-en-asiento"' +
+                ' data-asiento="' + numero + '"' +
+                ' data-pasajero-id="' + estado.asientoSeleccionado.pasajero_id + '" data-rol="' + estado.asientoSeleccionado.tipo + '"' +
+                ' title="Asiento ' + numero + ' · Intercambiar con ' + escapar(etiqueta) + '">' +
+                '<span class="butaca-texto">' + iniciales(ocupante.nombre) + '</span>' +
+                '<span class="butaca-numero">' + numero + '</span>' +
+                '</button>';
+        }
+
         return '<button type="button" class="' + clases + '" draggable="true" data-accion="seleccionar-asiento"' +
             ' data-asiento="' + numero + '"' +
             ' data-pasajero-id="' + ocupante.pasajero_id + '" data-rol="' + ocupante.tipo + '"' +

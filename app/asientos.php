@@ -320,29 +320,44 @@ function mover_ocupante(int $viajeId, int $pasajeroId, string $rol, int $destino
         }
     }
 
-    if ($slots[$destino] !== null) {
-        $hueco = null;
+    $ocupanteDestino = $slots[$destino];
 
-        for ($i = $destino; $i <= $lugares; $i++) {
-            if ($slots[$i] === null) {
-                $hueco = $i;
-                break;
+    // Intercambio: si el asiento destino está ocupado por otra persona y el
+    // pasajero que se mueve no lleva acompañante, se intercambian los asientos.
+    if ($acompanante === null
+        && $ocupanteDestino !== null
+        && (int) ($ocupanteDestino['pasajero_id'] ?? 0) !== (int) $movido['pasajero_id']) {
+        $origen = (int) $movido['numero'];
+
+        if ($origen >= 1 && $origen <= $lugares) {
+            $slots[$origen] = $ocupanteDestino;
+        }
+
+        $slots[$destino] = $movido;
+    } else {
+        if ($slots[$destino] !== null) {
+            $hueco = null;
+
+            for ($i = $destino; $i <= $lugares; $i++) {
+                if ($slots[$i] === null) {
+                    $hueco = $i;
+                    break;
+                }
+            }
+
+            if ($hueco === null) {
+                return false;
+            }
+
+            for ($i = $hueco; $i > $destino; $i--) {
+                $slots[$i] = $slots[$i - 1];
+                $slots[$i - 1] = null;
             }
         }
 
-        if ($hueco === null) {
-            return false;
-        }
+        $slots[$destino] = $movido;
 
-        for ($i = $hueco; $i > $destino; $i--) {
-            $slots[$i] = $slots[$i - 1];
-            $slots[$i - 1] = null;
-        }
-    }
-
-    $slots[$destino] = $movido;
-
-    if ($acompanante !== null) {
+        if ($acompanante !== null) {
         $colocado = false;
 
         for ($i = $destino + 1; $i <= $lugares; $i++) {
@@ -362,6 +377,7 @@ function mover_ocupante(int $viajeId, int $pasajeroId, string $rol, int $destino
                 }
             }
         }
+    }
     }
 
     $orden = [];

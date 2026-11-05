@@ -1930,11 +1930,13 @@
         }).join('') + '</div>';
     }
 
-    function cargarVetados(limpiar) {    function tarjetaMetrica(etiqueta, valor, detalle, iconoSvg) {
+    function tarjetaMetrica(etiqueta, valor, detalle, iconoSvg) {
         return '<div class="tarjeta-metrica"><div class="metrica-etiqueta">' + etiqueta + '</div>' +
             '<div class="metrica-valor">' + valor + '</div>' +
             '<div class="metrica-detalle">' + detalle + '</div></div>';
     }
+
+    function cargarVetados(limpiar) {
 
     function cargarVetados(limpiar) {
         if (limpiar) { estado.vetados = null; render(); }
@@ -4715,4 +4717,5 @@
     } else {
         iniciar();
     }
+}
 })();

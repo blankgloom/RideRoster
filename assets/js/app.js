@@ -1914,7 +1914,6 @@
             '</div>';
         return contenido;
     }
-    }
 
     function tarjetaMetricaClicable(etiqueta, valor, detalle, tipo) {
         return '<div class="tarjeta-metrica" data-accion="ver-detalle-reportes" data-tipo="' + tipo + '" style="cursor:pointer">' +
@@ -4718,4 +4717,5 @@
     } else {
         iniciar();
     }
+}
 })();

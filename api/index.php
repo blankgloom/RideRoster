@@ -1851,23 +1851,68 @@ try {
 
         case 'reportes':
             if ($metodo === 'GET') {
-                // Viajes realizados
-                $viajes = db()->query('SELECT v.id, p.nombre, p.destino, v.fecha,
+                $periodo = (string) ($_GET['periodo'] ?? 'anual');
+                $rango = rango_estadistico($periodo);
+                $desde = $rango['desde'];
+                $hasta = $rango['hasta'];
+
+                // Viajes realizados en el rango
+                $viajes = db()->query('SELECT v.id, p.nombre, p.destino, v.fecha, v.capacidad_bus,
                     (SELECT COALESCE(SUM(monto),0) FROM pagos pg WHERE pg.viaje_id = v.id) AS recaudado,
                     (SELECT COUNT(*) FROM pasajeros ps WHERE ps.viaje_id = v.id) AS pasajeros,
                     (SELECT COUNT(*) FROM pasajeros ps WHERE ps.viaje_id = v.id AND ps.encargado IS NOT NULL AND CHAR_LENGTH(ps.encargado)>0) AS acompanantes
                     FROM viajes v INNER JOIN paseos p ON p.id = v.paseo_id
-                    WHERE v.estado = "finalizado" OR v.fecha < CURDATE()
-                    ORDER BY v.fecha DESC LIMIT 50')->fetchAll();
+                    WHERE (v.estado = "finalizado" OR v.fecha < CURDATE())
+                      AND v.fecha >= ' . db()->quote($desde) . ' AND v.fecha <= ' . db()->quote($hasta) . '
+                    ORDER BY v.fecha DESC LIMIT 100')->fetchAll();
                 foreach ($viajes as &$v) {
                     $v['id'] = (int) $v['id'];
                     $v['recaudado'] = (float) $v['recaudado'];
                     $v['pasajeros'] = (int) $v['pasajeros'];
                     $v['acompanantes'] = (int) $v['acompanantes'];
                     $v['personas'] = $v['pasajeros'] + $v['acompanantes'];
+                    $v['capacidad_bus'] = (int) $v['capacidad_bus'];
+                    $v['ocupacion'] = $v['capacidad_bus'] > 0 ? round($v['personas'] / $v['capacidad_bus'] * 100, 1) : 0;
                 }
 
-                // Vetados por sección
+                // Destinos ranking
+                $destinos = db()->query('SELECT p.destino, COUNT(DISTINCT v.id) AS viajes, COALESCE(SUM(vp.personas),0) AS personas
+                    FROM viajes v INNER JOIN paseos p ON p.id = v.paseo_id
+                    LEFT JOIN (SELECT viaje_id, COUNT(*) AS personas FROM pasajeros GROUP BY viaje_id) vp ON vp.viaje_id = v.id
+                    WHERE (v.estado = "finalizado" OR v.fecha < CURDATE())
+                      AND v.fecha >= ' . db()->quote($desde) . ' AND v.fecha <= ' . db()->quote($hasta) . '
+                    GROUP BY p.destino ORDER BY personas DESC')->fetchAll();
+                foreach ($destinos as &$d) {
+                    $d['viajes'] = (int) $d['viajes'];
+                    $d['personas'] = (int) $d['personas'];
+                }
+
+                // Participación por sección
+                $secciones = db()->query('SELECT s.nombre AS seccion, COUNT(DISTINCT a.id) AS alumnos
+                    FROM pasajeros ps
+                    INNER JOIN viajes v ON v.id = ps.viaje_id
+                    LEFT JOIN alumnos a ON a.id = ps.alumno_id
+                    LEFT JOIN secciones s ON s.id = a.seccion_id
+                    WHERE (v.estado = "finalizado" OR v.fecha < CURDATE())
+                      AND v.fecha >= ' . db()->quote($desde) . ' AND v.fecha <= ' . db()->quote($hasta) . '
+                    GROUP BY s.nombre ORDER BY alumnos DESC')->fetchAll();
+                foreach ($secciones as &$sc) { $sc['alumnos'] = (int) $sc['alumnos']; }
+
+                // Recaudación mensual
+                $mensual = db()->query('SELECT DATE_FORMAT(v.fecha, "%Y-%m") AS mes, COALESCE(SUM(pg.monto),0) AS total
+                    FROM viajes v
+                    LEFT JOIN pagos pg ON pg.viaje_id = v.id
+                    WHERE (v.estado = "finalizado" OR v.fecha < CURDATE())
+                      AND v.fecha >= ' . db()->quote($desde) . ' AND v.fecha <= ' . db()->quote($hasta) . '
+                    GROUP BY mes ORDER BY mes ASC')->fetchAll();
+                foreach ($mensual as &$m) { $m['total'] = (float) $m['total']; }
+
+                // Ocupación promedio
+                $totalPersonas = 0; $totalCapacidad = 0;
+                foreach ($viajes as $v) { $totalPersonas += $v['personas']; $totalCapacidad += $v['capacidad_bus']; }
+                $ocupacionPromedio = $totalCapacidad > 0 ? round($totalPersonas / $totalCapacidad * 100, 1) : 0;
+
+                // Vetados
                 $vetadosSeccion = db()->query('SELECT s.nombre AS seccion, COUNT(*) AS total
                     FROM vetados v
                     INNER JOIN alumnos a ON a.id = v.alumno_id
@@ -1875,24 +1920,35 @@ try {
                     GROUP BY s.nombre ORDER BY total DESC')->fetchAll();
                 foreach ($vetadosSeccion as &$vs) { $vs['total'] = (int) $vs['total']; }
 
-                // Vetados por fecha
                 $vetadosFecha = db()->query('SELECT fecha, COUNT(*) AS total FROM vetados GROUP BY fecha ORDER BY fecha ASC')->fetchAll();
                 foreach ($vetadosFecha as &$vf) { $vf['total'] = (int) $vf['total']; }
 
-                // Totales
                 $totalAlumnos = (int) db()->query('SELECT COUNT(*) FROM alumnos')->fetchColumn();
                 $totalVetados = (int) db()->query('SELECT COUNT(*) FROM vetados')->fetchColumn();
                 $alumnosParticipantes = (int) db()->query('SELECT COUNT(DISTINCT codigo) FROM pasajeros')->fetchColumn();
                 $nuncaParticiparon = max(0, $totalAlumnos - $alumnosParticipantes);
 
+                // Listas de alumnos
+                $participantes = db()->query('SELECT DISTINCT a.id, a.codigo, a.nombre FROM pasajeros ps LEFT JOIN alumnos a ON a.id = ps.alumno_id WHERE a.id IS NOT NULL ORDER BY a.nombre ASC')->fetchAll();
+                foreach ($participantes as &$p) { $p['id'] = (int) $p['id']; }
+                $noParticipantes = db()->query('SELECT a.id, a.codigo, a.nombre FROM alumnos a WHERE a.id NOT IN (SELECT DISTINCT alumno_id FROM pasajeros WHERE alumno_id IS NOT NULL) ORDER BY a.nombre ASC')->fetchAll();
+                foreach ($noParticipantes as &$np) { $np['id'] = (int) $np['id']; }
+
                 responder_ok([
                     'viajes' => $viajes,
+                    'destinos' => $destinos,
+                    'secciones' => $secciones,
+                    'mensual' => $mensual,
+                    'ocupacion_promedio' => $ocupacionPromedio,
                     'vetados_seccion' => $vetadosSeccion,
                     'vetados_fecha' => $vetadosFecha,
                     'total_alumnos' => $totalAlumnos,
                     'total_vetados' => $totalVetados,
                     'alumnos_participantes' => $alumnosParticipantes,
                     'nunca_participaron' => $nuncaParticiparon,
+                    'participantes' => $participantes,
+                    'no_participantes' => $noParticipantes,
+                    'rango' => $rango,
                 ]);
             }
             responder_error('ruta_desconocida', 'Acción no disponible para reportes.');

@@ -19,6 +19,7 @@
         personal: [],
         vetados: null,
         reportes: null,
+        periodoReportes: 'anual',
         busquedaPasajeros: '',
         busquedaPaseos: '',
         viajeModalId: null,
@@ -1809,21 +1810,29 @@
     function vistaReportes() {
         var datos = estado.reportes;
         var encabezado = '<div class="encabezado-vista"><div><h1>Reportes</h1><p>Estadísticas y métricas clave del sistema.</p></div>' +
-            '<div class="acciones-vista"><button type="button" class="boton boton-borde boton-pequeno" data-accion="recargar-reportes">' + icono(ICONOS.refrescar) + 'Actualizar</button></div></div>';
+            '<div class="acciones-vista">' + selectorPeriodoReportes() +
+            '<button type="button" class="boton boton-borde boton-pequeno" data-accion="recargar-reportes">' + icono(ICONOS.refrescar) + 'Actualizar</button>' +
+            '<button type="button" class="boton boton-primario boton-pequeno" onclick="window.print()">Exportar PDF</button>' +
+            '</div></div>';
 
         if (!datos) {
             return '<div class="vista">' + encabezado + '<div class="cargando"><span class="cargando-barra"></span><p>Calculando reportes</p></div></div>';
         }
 
-        // Métricas textuales
         var metricas = '<div class="metricas">' +
-            tarjetaMetrica('Alumnos registrados', datos.total_alumnos, 'padrón histórico', ICONOS.usuarios) +
-            tarjetaMetrica('Alumnos vetados', datos.total_vetados, ((datos.total_alumnos > 0 ? Math.round(datos.total_vetados / datos.total_alumnos * 100) : 0) + '% del padrón'), ICONOS.bote) +
-            tarjetaMetrica('Han participado', datos.alumnos_participantes, 'en al menos un viaje', ICONOS.grafico) +
-            tarjetaMetrica('Nunca participaron', datos.nunca_participaron, ((datos.total_alumnos > 0 ? Math.round(datos.nunca_participaron / datos.total_alumnos * 100) : 0) + '% del padrón'), ICONOS.usuarios) +
+            tarjetaMetricaClicable('Alumnos registrados', datos.total_alumnos, 'padrón histórico', 'todos') +
+            tarjetaMetricaClicable('Alumnos vetados', datos.total_vetados, ((datos.total_alumnos > 0 ? Math.round(datos.total_vetados / datos.total_alumnos * 100) : 0) + '% del padrón'), 'vetados') +
+            tarjetaMetricaClicable('Han participado', datos.alumnos_participantes, 'en al menos un viaje', 'participantes') +
+            tarjetaMetricaClicable('Nunca participaron', datos.nunca_participaron, ((datos.total_alumnos > 0 ? Math.round(datos.nunca_participaron / datos.total_alumnos * 100) : 0) + '% del padrón'), 'no-participantes') +
             '</div>';
 
-        // Gráfica de barras: recaudación por viaje
+        // Ocupación
+        var ocupacion = '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Ocupación promedio de buses</h2><p>Eficiencia de llenado</p></div>' +
+            '<div class="tarjeta-cuerpo compacto"><div class="fila-ocupacion"><div class="fila-ocupacion-cabecera"><span>Ocupación promedio</span>' +
+            '<span class="fila-ocupacion-valor numero">' + datos.ocupacion_promedio + '%</span></div>' +
+            '<div class="barra"><span class="barra-relleno" style="width:' + Math.min(100, datos.ocupacion_promedio) + '%"></span></div></div></div></section>';
+
+        // Recaudación por viaje
         var viajes = datos.viajes || [];
         var barrasViajes = '';
         if (viajes.length) {
@@ -1842,43 +1851,86 @@
             barrasViajes = '<p class="texto-apagado">Sin viajes realizados.</p>';
         }
 
-        // Pastel: vetados por sección
-        var secciones = datos.vetados_seccion || [];
-        var totalVet = datos.total_vetados || 0;
-        var pastelSecciones = secciones.length ? secciones.map(function (s) {
+        // Destinos
+        var destinos = datos.destinos || [];
+        var barrasDestinos = destinos.length ? destinos.map(function (d) {
+            var maxD = Math.max.apply(null, destinos.map(function (x) { return x.personas; })) || 1;
+            return '<div class="fila-ocupacion"><div class="fila-ocupacion-cabecera">' +
+                '<span>' + escapar(d.destino) + ' <span class="texto-apagado">(' + d.viajes + ' viajes)</span></span>' +
+                '<span class="fila-ocupacion-valor numero">' + d.personas + '</span></div>' +
+                '<div class="barra"><span class="barra-relleno" style="width:' + Math.round(d.personas / maxD * 100) + '%"></span></div></div>';
+        }).join('') : '<p class="texto-apagado">Sin destinos.</p>';
+
+        // Participación por sección
+        var secciones = datos.secciones || [];
+        var barrasSecciones = secciones.length ? secciones.map(function (s) {
+            var maxS = Math.max.apply(null, secciones.map(function (x) { return x.alumnos; })) || 1;
+            return '<div class="fila-ocupacion"><div class="fila-ocupacion-cabecera">' +
+                '<span>' + escapar(s.seccion || 'Sin sección') + '</span>' +
+                '<span class="fila-ocupacion-valor numero">' + s.alumnos + '</span></div>' +
+                '<div class="barra"><span class="barra-relleno" style="width:' + Math.round(s.alumnos / maxS * 100) + '%"></span></div></div>';
+        }).join('') : '<p class="texto-apagado">Sin datos.</p>';
+
+        // Recaudación mensual
+        var mensual = datos.mensual || [];
+        var barrasMensual = mensual.length ? mensual.map(function (m) {
+            var maxM = Math.max.apply(null, mensual.map(function (x) { return x.total; })) || 1;
+            return '<div class="fila-ocupacion"><div class="fila-ocupacion-cabecera">' +
+                '<span>' + escapar(m.mes) + '</span>' +
+                '<span class="fila-ocupacion-valor numero">$' + m.total.toFixed(2) + '</span></div>' +
+                '<div class="barra"><span class="barra-relleno" style="width:' + Math.round(m.total / maxM * 100) + '%"></span></div></div>';
+        }).join('') : '<p class="texto-apagado">Sin datos.</p>';
+
+        // Vetados por sección
+        var vetSec = datos.vetados_seccion || [];
+        var barrasVetSec = vetSec.length ? vetSec.map(function (s) {
+            var maxV = Math.max.apply(null, vetSec.map(function (x) { return x.total; })) || 1;
             return '<div class="fila-ocupacion"><div class="fila-ocupacion-cabecera">' +
                 '<span>' + escapar(s.seccion || 'Sin sección') + '</span>' +
                 '<span class="fila-ocupacion-valor numero">' + s.total + '</span></div>' +
-                '<div class="barra"><span class="barra-relleno" style="width:' + (totalVet > 0 ? Math.round(s.total / totalVet * 100) : 0) + '%"></span></div></div>';
-        }).join('') : '<p class="texto-apagado">Sin vetados por sección.</p>';
+                '<div class="barra"><span class="barra-relleno" style="width:' + Math.round(s.total / maxV * 100) + '%"></span></div></div>';
+        }).join('') : '<p class="texto-apagado">Sin vetados.</p>';
 
-        // Distribución temporal vetos
-        var fechas = datos.vetados_fecha || [];
-        var barrasFechas = fechas.length ? fechas.map(function (f) {
-            var maxF = Math.max.apply(null, fechas.map(function (x) { return x.total; })) || 1;
-            return '<div class="fila-ocupacion"><div class="fila-ocupacion-cabecera">' +
-                '<span>' + escapar(f.fecha) + '</span>' +
-                '<span class="fila-ocupacion-valor numero">' + f.total + '</span></div>' +
-                '<div class="barra"><span class="barra-relleno" style="width:' + Math.round(f.total / maxF * 100) + '%"></span></div></div>';
-        }).join('') : '<p class="texto-apagado">Sin vetos registrados.</p>';
-
-        var contenido = '<div class="vista">' + encabezado + metricas +
+        var contenido = '<div class="vista">' + encabezado + metricas + ocupacion +
             '<div class="rejilla-estadisticas">' +
-            '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Recaudación por viaje</h2><p>Top 10 viajes realizados</p></div>' +
+            '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Recaudación por viaje</h2><p>Top viajes realizados</p></div>' +
             '<div class="tarjeta-cuerpo compacto">' + barrasViajes + '</div></section>' +
-            '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Vetados por sección</h2><p>Distribución académica</p></div>' +
-            '<div class="tarjeta-cuerpo compacto">' + pastelSecciones + '</div></section>' +
+            '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Destinos (ranking)</h2><p>Por asistencia</p></div>' +
+            '<div class="tarjeta-cuerpo compacto">' + barrasDestinos + '</div></section>' +
             '</div>' +
-            '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Vetos por fecha</h2><p>Distribución temporal</p></div>' +
-            '<div class="tarjeta-cuerpo compacto">' + barrasFechas + '</div></section>' +
-            '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Resumen textual</h2></div>' +
+            '<div class="rejilla-estadisticas">' +
+            '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Participación por sección</h2></div>' +
+            '<div class="tarjeta-cuerpo compacto">' + barrasSecciones + '</div></section>' +
+            '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Recaudación mensual</h2></div>' +
+            '<div class="tarjeta-cuerpo compacto">' + barrasMensual + '</div></section>' +
+            '</div>' +
+            '<div class="rejilla-estadisticas">' +
+            '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Vetados por sección</h2></div>' +
+            '<div class="tarjeta-cuerpo compacto">' + barrasVetSec + '</div></section>' +
+            '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Resumen</h2></div>' +
             '<div class="tarjeta-cuerpo compacto"><p>El ' + (datos.total_alumnos > 0 ? Math.round(datos.total_vetados / datos.total_alumnos * 100) : 0) + '% de los alumnos están vetados. ' +
             datos.nunca_participaron + ' alumnos (' + (datos.total_alumnos > 0 ? Math.round(datos.nunca_participaron / datos.total_alumnos * 100) : 0) + '%) nunca han participado en una excursión.</p></div></section>' +
+            '</div>' +
             '</div>';
         return contenido;
     }
 
-    function tarjetaMetrica(etiqueta, valor, detalle, iconoSvg) {
+    function tarjetaMetricaClicable(etiqueta, valor, detalle, tipo) {
+        return '<div class="tarjeta-metrica" data-accion="ver-detalle-reportes" data-tipo="' + tipo + '" style="cursor:pointer">' +
+            '<div class="metrica-etiqueta">' + etiqueta + '</div>' +
+            '<div class="metrica-valor">' + valor + '</div>' +
+            '<div class="metrica-detalle">' + detalle + '</div></div>';
+    }
+
+    function selectorPeriodoReportes() {
+        var opciones = ['mensual', 'trimestral', 'anual'];
+        var nombres = { mensual: 'Mensual', trimestral: 'Trimestral', anual: 'Anual' };
+        return '<div class="selector-periodo">' + opciones.map(function (p) {
+            return '<button type="button" class="periodo' + (estado.periodoReportes === p ? ' activo' : '') + '" data-accion="cambiar-periodo-reportes" data-periodo="' + p + '">' + nombres[p] + '</button>';
+        }).join('') + '</div>';
+    }
+
+    function cargarVetados(limpiar) {    function tarjetaMetrica(etiqueta, valor, detalle, iconoSvg) {
         return '<div class="tarjeta-metrica"><div class="metrica-etiqueta">' + etiqueta + '</div>' +
             '<div class="metrica-valor">' + valor + '</div>' +
             '<div class="metrica-detalle">' + detalle + '</div></div>';
@@ -1894,7 +1946,7 @@
 
     function cargarReportes(limpiar) {
         if (limpiar) { estado.reportes = null; render(); }
-        return apiGet('reportes').then(function (r) {
+        return apiGet('reportes', { periodo: estado.periodoReportes || 'anual' }).then(function (r) {
             estado.reportes = r.datos;
             if (estado.vista === 'reportes') { render(); }
         }).catch(function (e) { estado.reportes = null; if (estado.vista === 'reportes') render(); });
@@ -3319,6 +3371,27 @@
 
             case 'recargar-reportes':
                 cargarReportes(true);
+                break;
+
+            case 'cambiar-periodo-reportes':
+                var pr = disparador.getAttribute('data-periodo');
+                if (pr) {
+                    estado.periodoReportes = pr;
+                    cargarReportes(true);
+                }
+                break;
+
+            case 'ver-detalle-reportes':
+                var tipo = disparador.getAttribute('data-tipo');
+                var datos = estado.reportes;
+                if (!datos) { break; }
+                var lista = [];
+                var titulo = '';
+                if (tipo === 'participantes') { lista = datos.participantes || []; titulo = 'Alumnos que han participado'; }
+                else if (tipo === 'no-participantes') { lista = datos.no_participantes || []; titulo = 'Alumnos que nunca participaron'; }
+                else if (tipo === 'vetados') { /* no list in reportes */ titulo = 'Alumnos vetados'; }
+                var cuerpo = lista.length ? lista.map(function (a) { return '<p>' + escapar(a.codigo) + ' · ' + escapar(a.nombre) + '</p>'; }).join('') : '<p class="texto-apagado">Sin datos.</p>';
+                modal(titulo, 'Detalle', cuerpo, '<button type="button" class="boton boton-borde" data-accion="cerrar-modal">Cerrar</button>', false);
                 break;
 
             case 'elegir-profesor':

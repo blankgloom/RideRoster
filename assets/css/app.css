@@ -1224,7 +1224,34 @@ body.menu-abierto {
     outline-offset: 2px;
 }
 
-/* Formularios */
+/* Compañeros de viaje: bloque con su número correlativo */
+.companero-item {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.625rem;
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radio);
+    background: var(--color-superficie);
+}
+
+.companero-cabecera {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.companero-campos {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+@media (max-width: 640px) {
+    .companero-campos {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
 
 .formulario {
     display: grid;

@@ -5,6 +5,26 @@ Todas las novedades de RideRoster se registran en este archivo.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el
 versionado se basa en [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.0] - 2026-11-04
+
+### Añadido
+- **Traducción completa al inglés**: todas las vistas, modales, avisos y contenido dinámico se traducen desde `i18n.js`, incluyendo el encabezado responsive.
+- **Número correlativo manual por persona**: al agregar un estudiante se ingresa manualmente su número; si viaja con encargado y/o compañeros de viaje, aparecen automáticamente los campos para el encargado del estudiante, cada compañero y el encargado de cada compañero.
+- **Columna N.º en la Lista de pasajeros** con los correlativos individuales; no aparece en el listado impreso/PDF.
+- **Encabezado responsive**: menú hamburguesa y sidebar desde 1400 px, con cierre por Escape/clic fuera, bloqueo de scroll y foco.
+- **Cierre automático de boletos** y bloqueo de inscripción tras el cierre.
+- Soporte de códigos generales con la regex `/^\d{1,2}[A-Za-z]G?\d{2}$/i`.
+
+### Cambiado
+- `pasajeros` y `companeros` incluyen campos `correlativo` y `correlativo_encargado`.
+- Migración automática a esquema versión 11.
+- La fecha del encabezado se oculta en escritorio cuando el temporizador es visible para evitar desbordes.
+
+### Corregido
+- Eliminados todos los ejemplos con el código real `2JG25`.
+- Validación y mensajes de API para los números correlativos.
+- Persistencia de correlativos en todos los flujos de alta, desborde y redistribución.
+
 ## [1.2.0] - 2026-10-30
 
 ### Añadido

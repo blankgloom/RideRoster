@@ -25,7 +25,7 @@
         viajeModalId: null,
         viajeModal: null,
         viajeModalDirty: false,
-        formPasajero: { nombre: '', codigo: '', encargado: '', companeros: [], alumnoId: null, codigoAlumno: '', nombreAutomatico: false, conEncargado: false },
+        formPasajero: { nombre: '', codigo: '', encargado: '', correlativo: '', correlativoEncargado: '', companeros: [], alumnoId: null, codigoAlumno: '', nombreAutomatico: false, conEncargado: false },
         temporizadorSugerencias: null,
         advertenciaCodigo: null,
         desborde: null,
@@ -73,7 +73,15 @@
      * Locale para las fechas: cambia con el idioma elegido en la cabecera.
      */
     function localeFechas() {
-        return document.documentElement.lang === 'en' ? 'en-US' : 'es-SV';
+        var idioma = 'es';
+
+        try {
+            idioma = window.localStorage.getItem('rideroster_idioma') === 'en' ? 'en' : 'es';
+        } catch (error) {
+            idioma = document.documentElement.lang === 'en' ? 'en' : 'es';
+        }
+
+        return idioma === 'en' ? 'en-US' : 'es-SV';
     }
 
     function fechaCorta(iso) {
@@ -1042,7 +1050,8 @@
                 (pasajero.duplicado ? '<span class="pastilla error sin-punto linea">Código repetido</span>' : '') +
                 (pasajero.companeros && pasajero.companeros.length ? '<span class="celda-secundaria">Se sienta con ' + escapar(pasajero.companeros.map(function (c) { return c.codigo; }).join(', ')) + '</span>' : '') + '</td>' +
                 '<td class="numero celda-codigo">' + escapar(pasajero.codigo) + '</td>' +
-                '<td>' + (pasajero.encargado ? escapar(pasajero.encargado) : '<span class="sin-dato">Sin encargado</span>') + '</td>' +
+                '<td class="numero celda-codigo">' + escapar(pasajero.correlativo || '—') + '</td>' +
+                '<td>' + (pasajero.encargado ? escapar(pasajero.encargado) + (pasajero.correlativo_encargado ? ' · N.º ' + escapar(pasajero.correlativo_encargado) : '') : '<span class="sin-dato">Sin encargado</span>') + '</td>' +
                 '<td class="columna-media numero">' + dinero(pasajero.costo) +
                 (pasajero.encargado ? '<span class="celda-secundaria">incluye encargado</span>' : '') + '</td>' +
                 '<td class="columna-media numero">' + dinero(pasajero.pagado) + '</td>' +
@@ -1062,7 +1071,8 @@
                     '<td><span class="orden-inscripcion">' + ordenCompanero + '</span></td>' +
                     '<td><span class="celda-secundaria">Compañero de ' + escapar(pasajero.nombre) + ' · ' + escapar(nombre) + ' (' + escapar(codigo) + ')' + (conEnc ? ' · con encargado' : '') + '</span></td>' +
                     '<td class="numero celda-codigo">' + escapar(codigo) + '</td>' +
-                    '<td><span class="sin-dato">—</span></td>' +
+                    '<td class="numero celda-codigo">' + escapar((typeof comp === 'object' && comp.correlativo) ? comp.correlativo : '—') + '</td>' +
+                    '<td><span class="sin-dato">' + (conEnc ? 'Encargado · N.º ' + escapar((typeof comp === 'object' && comp.correlativo_encargado) ? comp.correlativo_encargado : '—') : '—') + '</span></td>' +
                     '<td class="columna-media numero">' + dinero(costoComp) + '</td>' +
                     '<td class="columna-media numero">' + dinero(costoComp) + '</td>' +
                     '<td></td>' +
@@ -1071,8 +1081,8 @@
 
             return filaPrincipal + filasCompaneros;
         }).join('') : (viaje
-            ? '<tr><td colspan="7"><div class="estado-vacio"><strong>Sin estudiantes</strong><p>Agrega a los primeros estudiantes desde el botón Gestionar viaje.</p></div></td></tr>'
-            : '<tr><td colspan="7"><div class="estado-vacio"><strong>Sin viaje activo</strong><p>Crea un paseo en Administración y programa un viaje para inscribir estudiantes.</p></div></td></tr>');
+            ? '<tr><td colspan="8"><div class="estado-vacio"><strong>Sin estudiantes</strong><p>Agrega a los primeros estudiantes desde el botón Gestionar viaje.</p></div></td></tr>'
+            : '<tr><td colspan="8"><div class="estado-vacio"><strong>Sin viaje activo</strong><p>Crea un paseo en Administración y programa un viaje para inscribir estudiantes.</p></div></td></tr>');
 
         var filasHistorial = historial.length ? historial.map(function (item) {
             return '<tr>' +
@@ -1160,7 +1170,7 @@
             (viaje ? '<button type="button" class="boton boton-primario boton-pequeno" data-accion="abrir-alta" data-id="' + viaje.id + '">' +
             icono(ICONOS.mas) + 'Agregar estudiante</button>' : '') + '</div></div>' +
             '<div class="tabla-envoltura tabla-alta"><table class="tabla"><thead><tr>' +
-            '<th class="col-orden">Orden</th><th>Estudiante</th><th>Código</th><th>Encargado</th><th class="col-derecha">Costo</th><th class="col-derecha">Pagado</th><th></th>' +
+            '<th class="col-orden">Orden</th><th>Estudiante</th><th>Código</th><th>N.º</th><th>Encargado</th><th class="col-derecha">Costo</th><th class="col-derecha">Pagado</th><th></th>' +
             '</tr></thead><tbody>' + filasPasajeros + '</tbody></table></div>' +
             '</section>' +
             panelLateral +
@@ -1925,8 +1935,8 @@
     function selectorPeriodoReportes() {
         var opciones = ['mensual', 'trimestral', 'anual'];
         var nombres = { mensual: 'Mensual', trimestral: 'Trimestral', anual: 'Anual' };
-        return '<div class="selector-periodo">' + opciones.map(function (p) {
-            return '<button type="button" class="periodo' + (estado.periodoReportes === p ? ' activo' : '') + '" data-accion="cambiar-periodo-reportes" data-periodo="' + p + '">' + nombres[p] + '</button>';
+        return '<div class="segmentado" role="group" aria-label="Período del reporte">' + opciones.map(function (p) {
+            return '<button type="button" class="segmento' + (estado.periodoReportes === p ? ' activa' : '') + '" data-accion="cambiar-periodo-reportes" data-periodo="' + p + '" aria-pressed="' + (estado.periodoReportes === p ? 'true' : 'false') + '">' + nombres[p] + '</button>';
         }).join('') + '</div>';
     }
 
@@ -2131,6 +2141,8 @@
             nombre: '',
             codigo: '',
             encargado: '',
+            correlativo: '',
+            correlativoEncargado: '',
             companeros: [],
             alumnoId: null,
             codigoAlumno: '',
@@ -2269,12 +2281,26 @@
         contenedor.innerHTML = codigos.map(function (item) {
             var codigo = (typeof item === 'string') ? item : item.codigo;
             var conEnc = (typeof item === 'object' && item) ? !!item.con_encargado : false;
-            return '<span class="chip">' + escapar(codigo) +
-                '<label class="chip-check"><input type="checkbox" data-accion="toggle-companero-encargado" data-codigo="' +
-                escapar(codigo) + '"' + (conEnc ? ' checked' : '') + '> con encargado</label>' +
+            var correlativo = (typeof item === 'object' && item) ? (item.correlativo || '') : '';
+            var correlativoEnc = (typeof item === 'object' && item) ? (item.correlativo_encargado || '') : '';
+            return '<div class="companero-item" data-codigo="' + escapar(codigo) + '">' +
+                '<div class="companero-cabecera">' +
+                '<span class="chip">' + escapar(codigo) +
                 '<button type="button" class="chip-quitar" data-accion="quitar-companero" data-codigo="' +
                 escapar(codigo) + '" aria-label="Quitar al compañero ' + escapar(codigo) + '">' +
-                icono(ICONOS.cerrar) + '</button></span>';
+                icono(ICONOS.cerrar) + '</button></span>' +
+                '<label class="chip-check"><input type="checkbox" data-accion="toggle-companero-encargado" data-codigo="' +
+                escapar(codigo) + '"' + (conEnc ? ' checked' : '') + '> con encargado</label>' +
+                '</div>' +
+                '<div class="companero-campos">' +
+                '<div class="campo"><label class="campo-etiqueta" for="correlativo-' + escapar(codigo) + '">N.º correlativo</label>' +
+                '<input type="text" class="control" data-accion="correlativo-companero" data-codigo="' + escapar(codigo) +
+                '" value="' + escapar(correlativo) + '" placeholder="Número manual"></div>' +
+                '<div class="campo' + (conEnc ? '' : ' oculto') + '" data-rol="correlativo-encargado" data-codigo="' + escapar(codigo) + '">' +
+                '<label class="campo-etiqueta">N.º correlativo del encargado</label>' +
+                '<input type="text" class="control" data-accion="correlativo-companero-encargado" data-codigo="' + escapar(codigo) +
+                '" value="' + escapar(correlativoEnc) + '" placeholder="Número manual"></div>' +
+                '</div></div>';
         }).join('');
 
         contenedor.classList.toggle('oculto', codigos.length === 0);
@@ -2307,7 +2333,7 @@
             return;
         }
 
-        lista.push({ codigo: codigo, con_encargado: false });
+        lista.push({ codigo: codigo, con_encargado: false, correlativo: '', correlativo_encargado: '' });
         estado.formPasajero.companeros = lista;
         pintarChipsCompaneros();
 
@@ -2439,7 +2465,8 @@
                 (pasajero.duplicado ? '<span class="pastilla error sin-punto linea">Código repetido</span>' : '') +
                 (pasajero.companeros && pasajero.companeros.length ? '<span class="celda-secundaria">Se sienta con ' + escapar(pasajero.companeros.map(function (c) { return c.codigo; }).join(', ')) + '</span>' : '') + '</td>' +
                 '<td class="numero celda-codigo">' + escapar(pasajero.codigo) + '</td>' +
-                '<td>' + (pasajero.encargado ? escapar(pasajero.encargado) : '<span class="sin-dato">Sin encargado</span>') + '</td>' +
+                '<td class="numero celda-codigo">' + escapar(pasajero.correlativo || '—') + '</td>' +
+                '<td>' + (pasajero.encargado ? escapar(pasajero.encargado) + (pasajero.correlativo_encargado ? ' · N.º ' + escapar(pasajero.correlativo_encargado) : '') : '<span class="sin-dato">Sin encargado</span>') + '</td>' +
                 '<td class="columna-media numero">' + dinero(pasajero.costo) +
                 (pasajero.encargado ? '<span class="celda-secundaria">incluye encargado</span>' : '') + '</td>' +
                 '<td class="columna-media numero">' + dinero(pasajero.pagado) +
@@ -2459,7 +2486,8 @@
                     '<td><span class="orden-inscripcion">' + ordenCompanero + '</span></td>' +
                     '<td><span class="celda-secundaria">Compañero de ' + escapar(pasajero.nombre) + ' · ' + escapar(nombre) + ' (' + escapar(codigo) + ')' + (conEnc ? ' · con encargado' : '') + '</span></td>' +
                     '<td class="numero celda-codigo">' + escapar(codigo) + '</td>' +
-                    '<td><span class="sin-dato">—</span></td>' +
+                    '<td class="numero celda-codigo">' + escapar((typeof comp === 'object' && comp.correlativo) ? comp.correlativo : '—') + '</td>' +
+                    '<td><span class="sin-dato">' + (conEnc ? 'Encargado · N.º ' + escapar((typeof comp === 'object' && comp.correlativo_encargado) ? comp.correlativo_encargado : '—') : '—') + '</span></td>' +
                     '<td class="columna-media numero">' + dinero(costoComp) + '</td>' +
                     '<td class="columna-media numero">' + dinero(costoComp) + '</td>' +
                     '<td></td>' +
@@ -2467,7 +2495,7 @@
             }).join('');
 
             return filaPrincipal + filasCompaneros;
-        }).join('') : '<tr><td colspan="7"><div class="estado-vacio compacto"><strong>Sin estudiantes</strong><p>Agrega al primer estudiante del viaje.</p></div></td></tr>';
+        }).join('') : '<tr><td colspan="8"><div class="estado-vacio compacto"><strong>Sin estudiantes</strong><p>Agrega al primer estudiante del viaje.</p></div></td></tr>';
 
         var pagos = viaje.pagos.length ? viaje.pagos.map(function (pago) {
             return '<tr>' +
@@ -2504,6 +2532,8 @@
             '<div class="campo"><label class="campo-etiqueta" for="pasajero-nombre">Nombre del estudiante</label>' +
             '<input type="text" class="control" id="pasajero-nombre" name="nombre" placeholder="Se escribe solo si el código no está en el padrón" value="' + escapar(estado.formPasajero.nombre) + '"></div>' +
             '</div>' +
+            '<div class="campo"><label class="campo-etiqueta" for="pasajero-correlativo">N.º correlativo del estudiante</label>' +
+            '<input type="text" class="control" id="pasajero-correlativo" name="correlativo" placeholder="Número manual" value="' + escapar(estado.formPasajero.correlativo) + '"></div>' +
             '<div class="campo"><label class="campo-etiqueta" for="pasajero-companero">Compañeros de viaje</label>' +
             '<div class="chips oculto" id="chips-companeros"></div>' +
             '<div class="control-envoltura">' +
@@ -2516,11 +2546,13 @@
             '<p class="campo-ayuda' + (estado.formPasajero.conEncargado ? '' : ' oculto') + '" id="aviso-encargado">El encargado ocupa un asiento y suma el costo por persona del paseo.</p>' +
             '<div class="campo' + (estado.formPasajero.conEncargado ? '' : ' oculto') + '" id="campo-encargado"><label class="campo-etiqueta" for="pasajero-encargado">Nombre del encargado</label>' +
             '<input type="text" class="control" id="pasajero-encargado" name="encargado" placeholder="Nombre del encargado" value="' + escapar(estado.formPasajero.encargado) + '"></div>' +
+            '<div class="campo' + (estado.formPasajero.conEncargado ? '' : ' oculto') + '" id="campo-correlativo-encargado"><label class="campo-etiqueta" for="pasajero-correlativo-encargado">N.º correlativo del encargado</label>' +
+            '<input type="text" class="control" id="pasajero-correlativo-encargado" name="correlativo_encargado" placeholder="Número manual" value="' + escapar(estado.formPasajero.correlativoEncargado) + '"></div>' +
             '<div class="grupo-botones inicio">' +
             '<button type="submit" class="boton boton-primario">' + icono(ICONOS.mas) + 'Agregar estudiante</button>' +
             '</div></form></div>') +
             '<div class="tabla-envoltura tabla-media"><table class="tabla tabla-compacta"><thead><tr>' +
-            '<th class="col-orden">Orden</th><th>Estudiante</th><th>Código</th><th>Encargado</th><th class="col-derecha">Costo</th><th class="col-derecha">Pagado</th><th></th>' +
+            '<th class="col-orden">Orden</th><th>Estudiante</th><th>Código</th><th>N.º</th><th>Encargado</th><th class="col-derecha">Costo</th><th class="col-derecha">Pagado</th><th></th>' +
             '</tr></thead><tbody>' + filas + '</tbody></table></div>' +
             '<section class="tarjeta"><div class="tarjeta-cabecera"><div><h3>Datos del viaje</h3><p>Horario, capacidad y estado del autobús</p></div>' +
             '<div class="acciones-vista"><button type="button" class="boton boton-borde boton-pequeno" data-accion="abrir-redistribucion" data-id="' + viaje.id + '">Redistribuir pasajeros</button></div></div>' +
@@ -3187,9 +3219,14 @@
     function alternarEncargado(activo) {
         var campo = $('#campo-encargado');
         var aviso = $('#aviso-encargado');
+        var campoCorrelativo = $('#campo-correlativo-encargado');
 
         if (campo) {
             campo.classList.toggle('oculto', !activo);
+        }
+
+        if (campoCorrelativo) {
+            campoCorrelativo.classList.toggle('oculto', !activo);
         }
 
         if (aviso) {
@@ -3440,6 +3477,7 @@
                         }
                     }
                 });
+                pintarChipsCompaneros();
                 break;
 
             case 'cambiar-periodo':
@@ -3748,6 +3786,8 @@
                     nombre: formulario.nombre,
                     codigo: formulario.codigo,
                     encargado: formulario.encargado,
+                    correlativo: formulario.correlativo || estado.formPasajero.correlativo || '',
+                    correlativo_encargado: formulario.correlativo_encargado || estado.formPasajero.correlativoEncargado || '',
                     alumno_id: formulario.alumno_id,
                     companeros: estado.formPasajero.companeros || [],
                     forzar: true
@@ -3786,6 +3826,8 @@
                     nombre: pendiente.nombre,
                     codigo: pendiente.codigo,
                     encargado: pendiente.encargado,
+                    correlativo: pendiente.correlativo || '',
+                    correlativo_encargado: pendiente.correlativo_encargado || '',
                     alumno_id: pendiente.alumno_id,
                     companeros: pendiente.companeros || [],
                     desborde: 'auto'
@@ -3815,6 +3857,8 @@
                     nombre: pendienteMovimiento.nombre,
                     codigo: pendienteMovimiento.codigo,
                     encargado: pendienteMovimiento.encargado,
+                    correlativo: pendienteMovimiento.correlativo || '',
+                    correlativo_encargado: pendienteMovimiento.correlativo_encargado || '',
                     alumno_id: pendienteMovimiento.alumno_id,
                     companeros: pendienteMovimiento.companeros || [],
                     viaje_destino: viajeDestinoDesborde
@@ -3851,6 +3895,8 @@
                         nombre: pendienteAmpliar.nombre,
                         codigo: pendienteAmpliar.codigo,
                         encargado: pendienteAmpliar.encargado,
+                        correlativo: pendienteAmpliar.correlativo || '',
+                        correlativo_encargado: pendienteAmpliar.correlativo_encargado || '',
                         alumno_id: pendienteAmpliar.alumno_id,
                         companeros: pendienteAmpliar.companeros || []
                     });
@@ -4114,13 +4160,41 @@
             estado.formPasajero.nombre = datosPasajero.nombre || '';
             estado.formPasajero.codigo = datosPasajero.codigo || '';
             estado.formPasajero.encargado = datosPasajero.encargado || '';
+            estado.formPasajero.correlativo = datosPasajero.correlativo || '';
+            estado.formPasajero.correlativoEncargado = datosPasajero.correlativo_encargado || '';
             estado.formPasajero.alumnoId = Number(datosPasajero.alumno_id || 0) || null;
+
+            if (!estado.formPasajero.correlativo.trim()) {
+                aviso('Falta el número correlativo', 'Indica el número correlativo del estudiante.', 'error');
+                var campoCorrelativo = $('#pasajero-correlativo');
+                if (campoCorrelativo) { campoCorrelativo.focus(); }
+                return;
+            }
+
+            if (estado.formPasajero.conEncargado && !estado.formPasajero.correlativoEncargado.trim()) {
+                aviso('Falta el número correlativo', 'Indica el número correlativo del encargado.', 'error');
+                var campoCorrelativoEnc = $('#pasajero-correlativo-encargado');
+                if (campoCorrelativoEnc) { campoCorrelativoEnc.focus(); }
+                return;
+            }
+
+            var companerosSinNumero = (companerosPasajero || []).filter(function (item) {
+                return !item || !String(item.correlativo || '').trim() ||
+                    (item.con_encargado && !String(item.correlativo_encargado || '').trim());
+            });
+
+            if (companerosSinNumero.length) {
+                aviso('Falta el número correlativo', 'Indica el número correlativo de cada compañero y de su encargado.', 'error');
+                return;
+            }
 
             apiPost('pasajeros', {
                 viaje_id: estado.viajeModalId,
                 nombre: datosPasajero.nombre || '',
                 codigo: datosPasajero.codigo || '',
                 encargado: datosPasajero.encargado || '',
+                correlativo: estado.formPasajero.correlativo.trim(),
+                correlativo_encargado: estado.formPasajero.conEncargado ? estado.formPasajero.correlativoEncargado.trim() : '',
                 alumno_id: estado.formPasajero.alumnoId,
                 companeros: companerosPasajero
             }).then(function (respuesta) {
@@ -4153,6 +4227,8 @@
                         nombre: datosPasajero.nombre || '',
                         codigo: datosPasajero.codigo || '',
                         encargado: datosPasajero.encargado || '',
+                        correlativo: estado.formPasajero.correlativo.trim(),
+                        correlativo_encargado: estado.formPasajero.conEncargado ? estado.formPasajero.correlativoEncargado.trim() : '',
                         alumno_id: estado.formPasajero.alumnoId,
                         companeros: companerosPasajero,
                         detalles: error.detalles || {}
@@ -4503,6 +4579,38 @@
 
             if (evento.target.id === 'pasajero-encargado') {
                 estado.formPasajero.encargado = evento.target.value;
+            }
+
+            if (evento.target.id === 'pasajero-correlativo') {
+                estado.formPasajero.correlativo = evento.target.value.trim();
+            }
+
+            if (evento.target.id === 'pasajero-correlativo-encargado') {
+                estado.formPasajero.correlativoEncargado = evento.target.value.trim();
+            }
+
+            var accionCorrelativo = evento.target.getAttribute && evento.target.getAttribute('data-accion');
+
+            if (accionCorrelativo === 'correlativo-companero') {
+                var codigoComp = evento.target.getAttribute('data-codigo');
+                (estado.formPasajero.companeros || []).forEach(function (item) {
+                    if ((typeof item === 'object' ? item.codigo : item) === codigoComp) {
+                        if (typeof item === 'object') {
+                            item.correlativo = evento.target.value.trim();
+                        }
+                    }
+                });
+            }
+
+            if (accionCorrelativo === 'correlativo-companero-encargado') {
+                var codigoComp2 = evento.target.getAttribute('data-codigo');
+                (estado.formPasajero.companeros || []).forEach(function (item) {
+                    if ((typeof item === 'object' ? item.codigo : item) === codigoComp2) {
+                        if (typeof item === 'object') {
+                            item.correlativo_encargado = evento.target.value.trim();
+                        }
+                    }
+                });
             }
         });
 

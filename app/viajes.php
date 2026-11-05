@@ -99,7 +99,7 @@ function normalizar_viaje(array $fila): array
  */
 function companeros_del_viaje(int $viajeId): array
 {
-    $sentencia = db()->prepare('SELECT c.pasajero_id, c.codigo, c.con_encargado
+    $sentencia = db()->prepare('SELECT c.pasajero_id, c.codigo, c.con_encargado, c.correlativo, c.correlativo_encargado
                                 FROM companeros c
                                 INNER JOIN pasajeros ps ON ps.id = c.pasajero_id
                                 WHERE ps.viaje_id = :viaje
@@ -122,6 +122,8 @@ function companeros_del_viaje(int $viajeId): array
             'codigo'        => $codigo,
             'nombre'        => $nombre,
             'con_encargado' => (int) ($fila['con_encargado'] ?? 0) === 1,
+            'correlativo'   => $fila['correlativo'] !== null ? (string) $fila['correlativo'] : '',
+            'correlativo_encargado' => $fila['correlativo_encargado'] !== null ? (string) $fila['correlativo_encargado'] : '',
         ];
     }
 
@@ -160,17 +162,21 @@ function guardar_companeros(int $pasajeroId, array $codigos): void
     db()->prepare('DELETE FROM companeros WHERE pasajero_id = :pasajero')
         ->execute([':pasajero' => $pasajeroId]);
 
-    $insertar = db()->prepare('INSERT IGNORE INTO companeros (pasajero_id, codigo, con_encargado)
-                               VALUES (:pasajero, :codigo, :con_encargado)');
+    $insertar = db()->prepare('INSERT IGNORE INTO companeros (pasajero_id, codigo, con_encargado, correlativo, correlativo_encargado)
+                               VALUES (:pasajero, :codigo, :con_encargado, :correlativo, :correlativo_encargado)');
     $vistos = [];
 
     foreach ($codigos as $item) {
         if (is_array($item)) {
             $codigo = normalizar_codigo((string) ($item['codigo'] ?? ''));
             $conEncargado = !empty($item['con_encargado']) ? 1 : 0;
+            $correlativo = trim((string) ($item['correlativo'] ?? ''));
+            $correlativoEncargado = trim((string) ($item['correlativo_encargado'] ?? ''));
         } else {
             $codigo = normalizar_codigo((string) $item);
             $conEncargado = 0;
+            $correlativo = null;
+            $correlativoEncargado = null;
         }
 
         if ($codigo === '' || isset($vistos[$codigo])) {
@@ -179,16 +185,18 @@ function guardar_companeros(int $pasajeroId, array $codigos): void
 
         $vistos[$codigo] = true;
         $insertar->execute([
-            ':pasajero'      => $pasajeroId,
-            ':codigo'        => $codigo,
-            ':con_encargado' => $conEncargado,
+            ':pasajero'             => $pasajeroId,
+            ':codigo'               => $codigo,
+            ':con_encargado'        => $conEncargado,
+            ':correlativo'          => $correlativo !== '' ? $correlativo : null,
+            ':correlativo_encargado' => $correlativoEncargado !== '' ? $correlativoEncargado : null,
         ]);
     }
 }
 
 function pasajeros_ordenados(int $viajeId, float $costoPersona = 0.0): array
 {
-    $sql = 'SELECT ps.id, ps.nombre, ps.codigo, ps.encargado, ps.creado_en,
+    $sql = 'SELECT ps.id, ps.nombre, ps.codigo, ps.encargado, ps.correlativo, ps.correlativo_encargado, ps.creado_en,
                    (SELECT COALESCE(SUM(monto), 0) FROM pagos pg WHERE pg.pasajero_id = ps.id) AS pagado,
                    (SELECT COUNT(*) FROM pasajeros o WHERE o.viaje_id = ps.viaje_id AND o.codigo = ps.codigo) AS repeticiones
             FROM pasajeros ps

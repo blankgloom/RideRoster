@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 const PREFIJOS_CODIGO = ['2B', '3A', '3C', '2D', '1A', '3B', '4A', '2C'];
-const ESQUEMA_VERSION = 10;
+const ESQUEMA_VERSION = 11;
 
 const TABLAS_PRINCIPALES = ['paseos', 'viajes', 'pasajeros', 'companeros', 'pagos', 'parametros', 'alumnos', 'profesores', 'encargados', 'secciones'];
 
@@ -182,6 +182,10 @@ function aplicar_esquema_padron(): void
     }
 
     agregar_columna_si_falta('pasajeros', 'alumno_id', 'alumno_id INT NULL');
+    agregar_columna_si_falta('pasajeros', 'correlativo', 'correlativo VARCHAR(40) NULL');
+    agregar_columna_si_falta('pasajeros', 'correlativo_encargado', 'correlativo_encargado VARCHAR(40) NULL');
+    agregar_columna_si_falta('companeros', 'correlativo', 'correlativo VARCHAR(40) NULL');
+    agregar_columna_si_falta('companeros', 'correlativo_encargado', 'correlativo_encargado VARCHAR(40) NULL');
     agregar_columna_si_falta('paseos', 'profesor_id', 'profesor_id INT NULL');
     agregar_columna_si_falta('alumnos', 'seccion_id', 'seccion_id INT NULL');
 

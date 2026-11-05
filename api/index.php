@@ -145,11 +145,31 @@ function lista_de_codigos(mixed $valores): array
  */
 function companeros_validados(mixed $valores, string $codigoPropio): array
 {
-    $codigos = lista_de_codigos($valores);
+    if (!is_array($valores)) {
+        return [];
+    }
+
     $propio = normalizar_codigo($codigoPropio);
+    $vistos = [];
     $validos = [];
 
-    foreach ($codigos as $codigo) {
+    foreach ($valores as $item) {
+        if (is_array($item)) {
+            $codigo = normalizar_codigo((string) ($item['codigo'] ?? ''));
+            $conEncargado = !empty($item['con_encargado']);
+            $correlativo = trim((string) ($item['correlativo'] ?? ''));
+            $correlativoEncargado = trim((string) ($item['correlativo_encargado'] ?? ''));
+        } else {
+            $codigo = normalizar_codigo((string) $item);
+            $conEncargado = false;
+            $correlativo = '';
+            $correlativoEncargado = '';
+        }
+
+        if ($codigo === '') {
+            continue;
+        }
+
         if ($codigo === $propio) {
             continue;
         }
@@ -163,7 +183,33 @@ function companeros_validados(mixed $valores, string $codigoPropio): array
             );
         }
 
-        $validos[] = $codigo;
+        if (isset($vistos[$codigo])) {
+            continue;
+        }
+
+        if ($correlativo === '') {
+            responder_error(
+                'correlativo_requerido',
+                'Falta el número correlativo del compañero ' . $codigo . '.',
+                422
+            );
+        }
+
+        if ($conEncargado && $correlativoEncargado === '') {
+            responder_error(
+                'correlativo_requerido',
+                'Falta el número correlativo del encargado del compañero ' . $codigo . '.',
+                422
+            );
+        }
+
+        $vistos[$codigo] = true;
+        $validos[] = [
+            'codigo'                 => $codigo,
+            'con_encargado'          => $conEncargado,
+            'correlativo'            => $correlativo,
+            'correlativo_encargado'  => $conEncargado ? $correlativoEncargado : null,
+        ];
     }
 
     if (count($validos) > MAX_COMPANEROS) {
@@ -782,6 +828,8 @@ try {
                 $nombre    = texto($datos, 'nombre');
                 $codigo    = texto($datos, 'codigo');
                 $encargado = texto($datos, 'encargado');
+                $correlativo = texto($datos, 'correlativo');
+                $correlativoEncargado = texto($datos, 'correlativo_encargado');
                 $forzar    = !empty($datos['forzar']);
                 $desborde  = texto($datos, 'desborde', '');
                 $viajeDestino = (int) ($datos['viaje_destino'] ?? 0);
@@ -826,6 +874,14 @@ try {
                         422,
                         ['codigo' => normalizar_codigo($codigo)]
                     );
+                }
+
+                if ($correlativo === '') {
+                    responder_error('correlativo_requerido', 'Falta el número correlativo del estudiante.', 422);
+                }
+
+                if ($encargado !== '' && $correlativoEncargado === '') {
+                    responder_error('correlativo_requerido', 'Falta el número correlativo del encargado.', 422);
                 }
 
                 $companeros = companeros_validados($datos['companeros'] ?? [], $codigo);
@@ -905,14 +961,16 @@ try {
                     $viajeInscripcion = crear_bus_hermano($viajeId);
                 }
 
-                $sentencia = db()->prepare('INSERT INTO pasajeros (viaje_id, nombre, codigo, encargado, alumno_id)
-                                            VALUES (:viaje, :nombre, :codigo, :encargado, :alumno)');
+                $sentencia = db()->prepare('INSERT INTO pasajeros (viaje_id, nombre, codigo, encargado, alumno_id, correlativo, correlativo_encargado)
+                                            VALUES (:viaje, :nombre, :codigo, :encargado, :alumno, :correlativo, :correlativo_encargado)');
                 $sentencia->execute([
                     ':viaje'     => $viajeInscripcion,
                     ':nombre'    => $nombre,
                     ':codigo'    => normalizar_codigo($codigo),
                     ':encargado' => $encargado !== '' ? $encargado : null,
                     ':alumno'    => $alumnoId,
+                    ':correlativo' => $correlativo,
+                    ':correlativo_encargado' => $encargado !== '' ? $correlativoEncargado : null,
                 ]);
 
                 $pasajeroId = (int) db()->lastInsertId();
@@ -1046,7 +1104,7 @@ try {
             }
 
             if ($metodo === 'POST' && $accion === 'actualizar') {
-                $fila = db()->prepare('SELECT viaje_id, encargado FROM pasajeros WHERE id = :id');
+                $fila = db()->prepare('SELECT viaje_id, encargado, correlativo, correlativo_encargado FROM pasajeros WHERE id = :id');
                 $fila->execute([':id' => $id]);
                 $registro = $fila->fetch();
 
@@ -1056,7 +1114,17 @@ try {
 
                 $detalle = detalle_viaje((int) $registro['viaje_id']);
                 $encargadoNuevo = texto($datos, 'encargado');
+                $correlativoNuevo = texto($datos, 'correlativo');
+                $correlativoEncargadoNuevo = texto($datos, 'correlativo_encargado');
                 $codigoNuevo = texto($datos, 'codigo');
+
+                if ($correlativoNuevo === '') {
+                    $correlativoNuevo = (string) ($registro['correlativo'] ?? '');
+                }
+
+                if ($correlativoEncargadoNuevo === '') {
+                    $correlativoEncargadoNuevo = (string) ($registro['correlativo_encargado'] ?? '');
+                }
                 $teniaEncargado = $registro['encargado'] !== null && $registro['encargado'] !== '';
 
                 if (!formato_codigo_valido($codigoNuevo)) {
@@ -1085,6 +1153,14 @@ try {
                     );
                 }
 
+                if ($correlativoNuevo === '') {
+                    responder_error('correlativo_requerido', 'Falta el número correlativo del estudiante.', 422);
+                }
+
+                if ($encargadoNuevo !== '' && $correlativoEncargadoNuevo === '') {
+                    responder_error('correlativo_requerido', 'Falta el número correlativo del encargado.', 422);
+                }
+
                 $companeros = companeros_validados($datos['companeros'] ?? [], $codigoNuevo);
 
                 $desborde = texto($datos, 'desborde', '');
@@ -1106,13 +1182,16 @@ try {
                 }
 
                 $sentencia = db()->prepare('UPDATE pasajeros
-                                            SET nombre = :nombre, codigo = :codigo, encargado = :encargado, alumno_id = :alumno
+                                            SET nombre = :nombre, codigo = :codigo, encargado = :encargado, alumno_id = :alumno,
+                                                correlativo = :correlativo, correlativo_encargado = :correlativo_encargado
                                             WHERE id = :id');
                 $sentencia->execute([
                     ':nombre'    => $nombreNuevo,
                     ':codigo'    => normalizar_codigo($codigoNuevo),
                     ':encargado' => $encargadoNuevo !== '' ? $encargadoNuevo : null,
                     ':alumno'    => $alumno !== null ? (int) $alumno['id'] : null,
+                    ':correlativo' => $correlativoNuevo,
+                    ':correlativo_encargado' => $encargadoNuevo !== '' ? $correlativoEncargadoNuevo : null,
                     ':id'        => $id,
                 ]);
 
@@ -1928,10 +2007,10 @@ try {
                 $alumnosParticipantes = (int) db()->query('SELECT COUNT(DISTINCT codigo) FROM pasajeros')->fetchColumn();
                 $nuncaParticiparon = max(0, $totalAlumnos - $alumnosParticipantes);
 
-                // Listas de alumnos
-                $participantes = db()->query('SELECT DISTINCT a.id, a.codigo, a.nombre FROM pasajeros ps LEFT JOIN alumnos a ON a.id = ps.alumno_id WHERE a.id IS NOT NULL ORDER BY a.nombre ASC')->fetchAll();
-                foreach ($participantes as &$p) { $p['id'] = (int) $p['id']; }
-                $noParticipantes = db()->query('SELECT a.id, a.codigo, a.nombre FROM alumnos a WHERE a.id NOT IN (SELECT DISTINCT alumno_id FROM pasajeros WHERE alumno_id IS NOT NULL) ORDER BY a.nombre ASC')->fetchAll();
+                // Listas de alumnos: participantes por código (nombre del pasajero o del padrón)
+                $participantes = db()->query('SELECT ps.codigo, MAX(ps.nombre) AS nombre FROM pasajeros ps GROUP BY ps.codigo ORDER BY nombre ASC')->fetchAll();
+                foreach ($participantes as &$p) { $p['id'] = 0; }
+                $noParticipantes = db()->query('SELECT a.id, a.codigo, a.nombre FROM alumnos a WHERE a.codigo NOT IN (SELECT DISTINCT codigo FROM pasajeros) ORDER BY a.nombre ASC')->fetchAll();
                 foreach ($noParticipantes as &$np) { $np['id'] = (int) $np['id']; }
 
                 responder_ok([

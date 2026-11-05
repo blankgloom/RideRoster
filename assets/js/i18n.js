@@ -389,7 +389,8 @@
         'Ocupación del autobús': 'Bus occupancy',
         'Ocupación promedio': 'Average occupancy',
         'Ocupación por autobús': 'Occupancy per bus',
-        'Opcional': 'Optional',
+        'Opcional. Agrega todos los códigos del grupito y se les asignan asientos juntos.':
+            'Optional. Add all the codes of the group and they will be seated together.',
         'Orden': 'Order',
         'Orden de abordaje': 'Boarding order',
         'Orden de inscripción': 'Registration order',
@@ -655,8 +656,64 @@
         'sin encargado asignado': 'no guardian assigned',
         'inscritos · ordenados según se agregaron':
             'enrolled · listed in the order they were added',
-        'Salida hace': 'Departed'
+        'Salida hace': 'Departed',
+        'Viaje actual, control de pasajeros y respaldo de los viajes anteriores.': 'Current trip, passenger control and backup of previous trips.',
+        'N.º': 'No.',
+        'Cerrar boletos': 'Close tickets',
+        'Agregar estudiante': 'Add student',
+        'Deshacer': 'Undo',
+        'Manage': 'Manage',
+        'Details': 'Details',
+        'N.º correlativo del estudiante': 'Student correlative number',
+        'N.º correlativo del encargado': 'Guardian correlative number',
+        'N.º correlativo': 'Correlative number',
+        'Número manual': 'Manual number',
+        'Falta el número correlativo': 'Missing correlative number',
+        'Indica el número correlativo del estudiante.': 'Enter the student correlative number.',
+        'Indica el número correlativo del encargado.': 'Enter the guardian correlative number.',
+        'Indica el número correlativo de cada compañero y de su encargado.': 'Enter the correlative number of each companion and their guardian.',
+        'Encargado · N.º ': 'Guardian · No. ',
+        'Selecciona un estudiante y elige el asiento exacto que ocupará, o arrástralo hasta la butaca. Con': 'Select a student and choose the exact seat they will take, or drag them to the seat. With',
+        '55 asientos': '55 seats',
+        'reservados al personal': 'reserved for staff',
+        'de asientos disponibles': 'seats available',
+        'ocupados': 'occupied',
+        'cupos libres': 'seats available',
+        'personas': 'people',
+        'pasajeros': 'passengers',
+        'alumnos en': 'students in',
+        'alumnos': 'students',
+        'secciones': 'sections',
+        'bus(es) cubriendo': 'bus(es) covering'
     };
+
+    /**
+     * Patrones para textos dinámicos que mezclan números y nombres.
+     */
+    var PATRONES = [
+        [/^de (\d+) asientos disponibles$/, 'of $1 seats available'],
+        [/^(\d+) de (\d+)$/, '$1 of $2'],
+        [/^(\d+) \/ (\d+) ocupados$/, '$1 / $2 occupied'],
+        [/^(\d+) cupos libres$/, '$1 seats available'],
+        [/^(\d+) pasajeros$/, '$1 passengers'],
+        [/^(\d+) personas$/, '$1 people'],
+        [/^(\d+) asientos$/, '$1 seats'],
+        [/^(\d+) alumnos en (\d+) secciones$/, '$1 students in $2 sections'],
+        [/^(\d+) alumnos$/, '$1 students'],
+        [/^(\d+) ° año$/, '$1st year'],
+        [/^(.+) · Bus (\d+) de (\d+)$/, '$1 · Bus $2 of $3'],
+        [/^(\d+) bus\(es\) cubriendo (.+) el (.+)$/, '$1 bus(es) covering $2 on $3'],
+        [/^(\d+)% del padrón$/, '$1% of the registry'],
+        [/^(\d+) estudiantes · (\d+) acompañantes · (\d+) de personal$/, '$1 students · $2 companions · $3 staff'],
+        [/^Asiento (\d+)$/, 'Seat $1'],
+        [/^Bus (\d+)$/, 'Bus $1']
+    ];
+
+    // Remove the no-op placeholder pattern.
+    PATRONES = PATRONES.filter(function (item) { return item[1] !== null; });
+
+    // Remove the no-op placeholder pattern.
+    PATRONES = PATRONES.filter(function (item) { return item[1] !== null; });
 
     var prefijos = Object.keys(DICCIONARIO).filter(function (clave) {
         return clave.charAt(clave.length - 1) === '*';
@@ -719,6 +776,23 @@
             if (cuerpo.length > base.length && cuerpo.indexOf(base) === 0
                 && cuerpo.charAt(base.length) === ' ') {
                 return DICCIONARIO[base + '*'] + cuerpo.slice(base.length);
+            }
+        }
+
+        // Patrones dinámicos para textos con números y nombres.
+        for (var p = 0; p < PATRONES.length; p++) {
+            var patron = PATRONES[p][0];
+            var reemplazo = PATRONES[p][1];
+            var coincidencia = cuerpo.match(patron);
+
+            if (coincidencia) {
+                var resultado = reemplazo;
+
+                for (var g = 1; g < coincidencia.length; g++) {
+                    resultado = resultado.replace('$' + g, coincidencia[g]);
+                }
+
+                return resultado;
             }
         }
 

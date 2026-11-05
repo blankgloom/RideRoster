@@ -36,6 +36,7 @@
      */
     var DICCIONARIO = {
         ': solo completa lo que falta.': ': it only fills in what is missing.',
+        'Abrir menú': 'Open menu',
         'Acomodar en otro bus de la salida': 'Seat in another bus of the departure',
         'Acompañante': 'Companion',
         'Acompañantes': 'Companions',
@@ -74,8 +75,8 @@
         'Autobús': 'Bus',
         'Año': 'Year',
         'Año escolar': 'School year',
-        'Año, sección y número de lista: 2B03 o 2JG25':
-            'Year, section and list number: 2B03 or 2JG25',
+        'Año, sección y número de lista (G en generales): 2B03':
+            'Year, section and list number (G in general groups): 2B03',
         'Aún no hay personal registrado.': 'No staff registered yet.',
         'Boletos cerrados': 'Tickets closed',
         'Bus': 'Bus',
@@ -105,6 +106,7 @@
         'Catálogo docente': 'Teacher catalog',
         'Cerrar': 'Close',
         'Cerrar huecos': 'Close gaps',
+        'Cerrar menú': 'Close menu',
         'Cobrar lo pendiente': 'Collect what is pending',
         'Colecturía activa': 'Transport office active',
         'Colecturía del Instituto Nacional de Apopa':
@@ -244,8 +246,8 @@
         'Finalizado': 'Finished',
         'Finalizar viaje ahora': 'Finish trip now',
         'Firma': 'Signature',
-        'Formato inválido. Ejemplos: 2B03 o 2JG25':
-            'Invalid format. Examples: 2B03 or 2JG25',
+        'Formato inválido. Ejemplo: 2B03':
+            'Invalid format. Example: 2B03',
         'Generar listado': 'Generate list',
         'Gestionar': 'Manage',
         'Gestionar viaje': 'Manage trip',
@@ -318,6 +320,7 @@
         'Los viajes se muestran en la pestaña Inicio': 'Trips show up on the Home tab',
         'Marca al menos un estudiante para cambiarlo de bus.':
             'Select at least one student to move them to another bus.',
+        'Menú': 'Menu',
         'Monto': 'Amount',
         'Mover a otro bus': 'Move to another bus',
         'Mover los seleccionados al bus': 'Move the selected ones to the bus',
@@ -552,8 +555,8 @@
             'A student can declare at most 10 travel companions.',
         'Ubicación actualizada': 'Seat updated',
         'Ubicación actualizada.': 'Seat updated.',
-        'Usa el formato 2B03 o el de un grupo general como 2JG25.':
-            'Use the 2B03 format or a general group code such as 2JG25.',
+        'Usa el formato 2B03 o año, sección, G y número en generales.':
+            'Use the 2B03 format or year, section, G and number for general groups.',
         'Valor por defecto del sistema, puedes ajustarlo para este viaje.':
             'The system default value; you can adjust it for this trip.',
         'Ver detalle': 'View details',

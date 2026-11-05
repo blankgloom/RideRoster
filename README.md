@@ -76,13 +76,12 @@ Cuando un estudiante viaja con encargado, el encargado se contabiliza como una p
 * **Cobro:** el sistema muestra el costo total de cada fila (estudiante + encargado), lo que falta por pagar de cada uno y el botón **Cobrar lo pendiente**, que registra de una sola vez los cobros faltantes.
 
 ### Formato de código de estudiante
-El código sigue la estructura `[Año][Sección][Número de lista]`, con el número de lista a dos dígitos. Los grupos generales agregan una `G` antes del número: `[Año][Sección]G[Número de lista]`.
+El código sigue la estructura `[Año][Sección][Número de lista]`, con el número de lista a dos dígitos. Los grupos generales agregan una `G` antes del número de lista.
 
 | Ejemplo | Año | Sección | Número de lista |
 | --- | --- | --- | --- |
 | `2B03` | Segundo año | Sección B | 03 |
 | `3A07` | Tercer año | Sección A | 07 |
-| `2JG25` | Segundo año | Sección J, general | 25 |
 
 El formato se valida en el formulario (con aviso en vivo) y en el servidor antes de registrar al estudiante.
 

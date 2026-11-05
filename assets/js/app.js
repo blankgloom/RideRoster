@@ -18,6 +18,7 @@
         paseos: [],
         personal: [],
         vetados: null,
+        reportes: null,
         busquedaPasajeros: '',
         busquedaPaseos: '',
         viajeModalId: null,
@@ -545,6 +546,8 @@
             contenedor.innerHTML = vistaProfesores();
         } else if (estado.vista === 'vetados') {
             contenedor.innerHTML = vistaVetados();
+        } else if (estado.vista === 'reportes') {
+            contenedor.innerHTML = vistaReportes();
         } else {
             contenedor.innerHTML = vistaInicio();
         }
@@ -1793,7 +1796,7 @@
         var contenido = '<div class="vista">' + encabezado +
             '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Agregar vetado</h2></div>' +
             '<div class="tarjeta-cuerpo compacto"><form class="formulario" id="form-vetado">' +
-            '<div class="campo"><label class="campo-etiqueta">Código del alumno</label><input class="control" id="vetado-codigo" placeholder="2B03 o 2JG25"></div>' +
+            '<div class="campo"><label class="campo-etiqueta">Código del alumno</label><input class="control" id="vetado-codigo" placeholder="2B03"></div>' +
             '<div class="campo"><label class="campo-etiqueta">Motivo</label><input class="control" id="vetado-motivo" placeholder="Motivo"></div>' +
             '<div class="grupo-botones inicio"><button type="button" class="boton boton-primario" data-accion="agregar-vetado">Agregar</button></div>' +
             '</form></div></section>' +
@@ -1803,12 +1806,98 @@
         return contenido;
     }
 
+    function vistaReportes() {
+        var datos = estado.reportes;
+        var encabezado = '<div class="encabezado-vista"><div><h1>Reportes</h1><p>Estadísticas y métricas clave del sistema.</p></div>' +
+            '<div class="acciones-vista"><button type="button" class="boton boton-borde boton-pequeno" data-accion="recargar-reportes">' + icono(ICONOS.refrescar) + 'Actualizar</button></div></div>';
+
+        if (!datos) {
+            return '<div class="vista">' + encabezado + '<div class="cargando"><span class="cargando-barra"></span><p>Calculando reportes</p></div></div>';
+        }
+
+        // Métricas textuales
+        var metricas = '<div class="metricas">' +
+            tarjetaMetrica('Alumnos registrados', datos.total_alumnos, 'padrón histórico', ICONOS.usuarios) +
+            tarjetaMetrica('Alumnos vetados', datos.total_vetados, ((datos.total_alumnos > 0 ? Math.round(datos.total_vetados / datos.total_alumnos * 100) : 0) + '% del padrón'), ICONOS.bote) +
+            tarjetaMetrica('Han participado', datos.alumnos_participantes, 'en al menos un viaje', ICONOS.grafico) +
+            tarjetaMetrica('Nunca participaron', datos.nunca_participaron, ((datos.total_alumnos > 0 ? Math.round(datos.nunca_participaron / datos.total_alumnos * 100) : 0) + '% del padrón'), ICONOS.usuarios) +
+            '</div>';
+
+        // Gráfica de barras: recaudación por viaje
+        var viajes = datos.viajes || [];
+        var barrasViajes = '';
+        if (viajes.length) {
+            var maxRec = Math.max.apply(null, viajes.map(function (v) { return v.recaudado; })) || 1;
+            barrasViajes = viajes.slice(0, 10).map(function (v) {
+                var pct = Math.round(v.recaudado / maxRec * 100);
+                return '<div class="fila-ocupacion">' +
+                    '<div class="fila-ocupacion-cabecera">' +
+                    '<span><strong>' + escapar(v.nombre) + '</strong><span class="texto-apagado"> · ' + escapar(v.destino) + '</span></span>' +
+                    '<span class="fila-ocupacion-valor numero">$' + v.recaudado.toFixed(2) + '</span></div>' +
+                    '<div class="barra"><span class="barra-relleno" style="width:' + pct + '%"></span></div>' +
+                    '<div class="fila-ocupacion-pie"><span>' + v.personas + ' personas</span><span>' + escapar(v.fecha) + '</span></div>' +
+                    '</div>';
+            }).join('');
+        } else {
+            barrasViajes = '<p class="texto-apagado">Sin viajes realizados.</p>';
+        }
+
+        // Pastel: vetados por sección
+        var secciones = datos.vetados_seccion || [];
+        var totalVet = datos.total_vetados || 0;
+        var pastelSecciones = secciones.length ? secciones.map(function (s) {
+            return '<div class="fila-ocupacion"><div class="fila-ocupacion-cabecera">' +
+                '<span>' + escapar(s.seccion || 'Sin sección') + '</span>' +
+                '<span class="fila-ocupacion-valor numero">' + s.total + '</span></div>' +
+                '<div class="barra"><span class="barra-relleno" style="width:' + (totalVet > 0 ? Math.round(s.total / totalVet * 100) : 0) + '%"></span></div></div>';
+        }).join('') : '<p class="texto-apagado">Sin vetados por sección.</p>';
+
+        // Distribución temporal vetos
+        var fechas = datos.vetados_fecha || [];
+        var barrasFechas = fechas.length ? fechas.map(function (f) {
+            var maxF = Math.max.apply(null, fechas.map(function (x) { return x.total; })) || 1;
+            return '<div class="fila-ocupacion"><div class="fila-ocupacion-cabecera">' +
+                '<span>' + escapar(f.fecha) + '</span>' +
+                '<span class="fila-ocupacion-valor numero">' + f.total + '</span></div>' +
+                '<div class="barra"><span class="barra-relleno" style="width:' + Math.round(f.total / maxF * 100) + '%"></span></div></div>';
+        }).join('') : '<p class="texto-apagado">Sin vetos registrados.</p>';
+
+        var contenido = '<div class="vista">' + encabezado + metricas +
+            '<div class="rejilla-estadisticas">' +
+            '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Recaudación por viaje</h2><p>Top 10 viajes realizados</p></div>' +
+            '<div class="tarjeta-cuerpo compacto">' + barrasViajes + '</div></section>' +
+            '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Vetados por sección</h2><p>Distribución académica</p></div>' +
+            '<div class="tarjeta-cuerpo compacto">' + pastelSecciones + '</div></section>' +
+            '</div>' +
+            '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Vetos por fecha</h2><p>Distribución temporal</p></div>' +
+            '<div class="tarjeta-cuerpo compacto">' + barrasFechas + '</div></section>' +
+            '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Resumen textual</h2></div>' +
+            '<div class="tarjeta-cuerpo compacto"><p>El ' + (datos.total_alumnos > 0 ? Math.round(datos.total_vetados / datos.total_alumnos * 100) : 0) + '% de los alumnos están vetados. ' +
+            datos.nunca_participaron + ' alumnos (' + (datos.total_alumnos > 0 ? Math.round(datos.nunca_participaron / datos.total_alumnos * 100) : 0) + '%) nunca han participado en una excursión.</p></div></section>' +
+            '</div>';
+        return contenido;
+    }
+
+    function tarjetaMetrica(etiqueta, valor, detalle, iconoSvg) {
+        return '<div class="tarjeta-metrica"><div class="metrica-etiqueta">' + etiqueta + '</div>' +
+            '<div class="metrica-valor">' + valor + '</div>' +
+            '<div class="metrica-detalle">' + detalle + '</div></div>';
+    }
+
     function cargarVetados(limpiar) {
         if (limpiar) { estado.vetados = null; render(); }
         return apiGet('vetados').then(function (r) {
             estado.vetados = r.datos;
             if (estado.vista === 'vetados') { render(); }
         }).catch(function (e) { estado.vetados = []; if (estado.vista === 'vetados') render(); });
+    }
+
+    function cargarReportes(limpiar) {
+        if (limpiar) { estado.reportes = null; render(); }
+        return apiGet('reportes').then(function (r) {
+            estado.reportes = r.datos;
+            if (estado.vista === 'reportes') { render(); }
+        }).catch(function (e) { estado.reportes = null; if (estado.vista === 'reportes') render(); });
     }
 
     function abrirModalAlumno(alumnoId) {
@@ -1833,7 +1922,7 @@
             (alumno ? ' data-id="' + alumno.id + '"' : '') + '>' +
             '<div class="formulario dos-columnas">' +
             '<div class="campo"><label class="campo-etiqueta" for="alumno-codigo">Código</label>' +
-            '<input type="text" class="control" id="alumno-codigo" name="codigo" placeholder="Ej. 2B03 o 2JG25" value="' +
+            '<input type="text" class="control" id="alumno-codigo" name="codigo" placeholder="Ej. 2B03" value="' +
             escapar(alumno ? alumno.codigo : '') + '"></div>' +
             '<div class="campo"><label class="campo-etiqueta" for="alumno-nombre">Nombre completo</label>' +
             '<input type="text" class="control" id="alumno-nombre" name="nombre" placeholder="Nombres y apellidos" value="' +
@@ -2151,7 +2240,7 @@
         }
 
         if (!/^\d{1,2}[A-Za-z]G?\d{2}$/i.test(codigo)) {
-            aviso('Código no válido', 'Usa el formato 2B03 o el de un grupo general como 2JG25.', 'error');
+            aviso('Código no válido', 'Usa el formato 2B03 o año, sección, G y número en generales.', 'error');
             return;
         }
 
@@ -2355,7 +2444,7 @@
             '<div class="formulario dos-columnas compacto-campos">' +
             '<div class="campo"><label class="campo-etiqueta" for="pasajero-codigo">Código del estudiante</label>' +
             '<div class="control-envoltura">' +
-            '<input type="text" class="control" id="pasajero-codigo" name="codigo" placeholder="Ej. 2B03 o 2JG25" maxlength="6" autocomplete="off" value="' + escapar(estado.formPasajero.codigo) + '">' +
+            '<input type="text" class="control" id="pasajero-codigo" name="codigo" placeholder="Ej. 2B03" maxlength="6" autocomplete="off" value="' + escapar(estado.formPasajero.codigo) + '">' +
             '<div class="autocompletar" id="sugerencias-pasajero" role="listbox" hidden></div>' +
             '</div>' +
             '<input type="hidden" id="pasajero-alumno" name="alumno_id" value="' + (estado.formPasajero.alumnoId || '') + '">' +
@@ -3028,7 +3117,7 @@
         }
 
         if (valor === '') {
-            ayuda.textContent = 'Año, sección y número de lista: 2B03 o 2JG25';
+            ayuda.textContent = 'Año, sección y número de lista (G en generales): 2B03';
             ayuda.classList.remove('ayuda-error');
             return;
         }
@@ -3039,7 +3128,7 @@
             return;
         }
 
-        ayuda.textContent = 'Formato inválido. Ejemplos: 2B03 o 2JG25';
+        ayuda.textContent = 'Formato inválido. Ejemplo: 2B03';
         ayuda.classList.add('ayuda-error');
     }
 
@@ -3226,6 +3315,10 @@
 
             case 'recargar-vetados':
                 cargarVetados(true);
+                break;
+
+            case 'recargar-reportes':
+                cargarReportes(true);
                 break;
 
             case 'elegir-profesor':
@@ -4095,6 +4188,54 @@
         }
     }
 
+    function menuLateralAbierto() {
+        var menu = $('#menu-lateral');
+
+        return menu ? menu.classList.contains('abierto') : false;
+    }
+
+    function abrirMenuLateral() {
+        var menu = $('#menu-lateral');
+        var capa = $('#menu-capa');
+        var boton = $('#boton-menu');
+
+        if (!menu || !capa || !boton) {
+            return;
+        }
+
+        menu.classList.add('abierto');
+        capa.hidden = false;
+        boton.setAttribute('aria-expanded', 'true');
+        boton.setAttribute('aria-label', 'Cerrar menú');
+        document.body.classList.add('menu-abierto');
+
+        var primeraPestana = menu.querySelector('.pestana');
+
+        if (primeraPestana) {
+            primeraPestana.focus();
+        }
+    }
+
+    function cerrarMenuLateral(restaurarFoco) {
+        var menu = $('#menu-lateral');
+        var capa = $('#menu-capa');
+        var boton = $('#boton-menu');
+
+        if (!menu || !capa || !boton || !menu.classList.contains('abierto')) {
+            return;
+        }
+
+        menu.classList.remove('abierto');
+        capa.hidden = true;
+        boton.setAttribute('aria-expanded', 'false');
+        boton.setAttribute('aria-label', 'Abrir menú');
+        document.body.classList.remove('menu-abierto');
+
+        if (restaurarFoco) {
+            boton.focus();
+        }
+    }
+
     function cambiarVista(vista) {
         estado.vista = vista;
 
@@ -4120,6 +4261,10 @@
             cargarVetados(false);
         }
 
+        if (vista === 'reportes') {
+            cargarReportes(false);
+        }
+
         render();
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -4133,6 +4278,41 @@
 
             if (pestana) {
                 cambiarVista(pestana.getAttribute('data-vista'));
+                cerrarMenuLateral(true);
+            }
+        });
+
+        var botonMenu = $('#boton-menu');
+
+        if (botonMenu) {
+            botonMenu.addEventListener('click', function () {
+                if (menuLateralAbierto()) {
+                    cerrarMenuLateral(true);
+                } else {
+                    abrirMenuLateral();
+                }
+            });
+        }
+
+        var cerrarMenu = $('#menu-cerrar');
+
+        if (cerrarMenu) {
+            cerrarMenu.addEventListener('click', function () {
+                cerrarMenuLateral(true);
+            });
+        }
+
+        var capaMenu = $('#menu-capa');
+
+        if (capaMenu) {
+            capaMenu.addEventListener('click', function () {
+                cerrarMenuLateral(true);
+            });
+        }
+
+        window.addEventListener('resize', function () {
+            if (window.innerWidth > 1400) {
+                cerrarMenuLateral(false);
             }
         });
 
@@ -4335,6 +4515,11 @@
             }
 
             if (evento.key !== 'Escape') {
+                return;
+            }
+
+            if (menuLateralAbierto()) {
+                cerrarMenuLateral(true);
                 return;
             }
 

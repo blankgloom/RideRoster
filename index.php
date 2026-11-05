@@ -44,31 +44,50 @@ $versionIcono = filemtime(__DIR__ . '/assets/img/icono-cabecera.png');
                 </span>
             </div>
 
-            <nav class="pestanas" id="pestanas" aria-label="Secciones del sistema">
-                <button type="button" class="pestana activa" data-vista="inicio" aria-selected="true">Inicio</button>
-                <button type="button" class="pestana" data-vista="alumnos" aria-selected="false">Alumnos</button>
-                <button type="button" class="pestana" data-vista="profesores" aria-selected="false">Profesores</button>
-                <button type="button" class="pestana" data-vista="administracion" aria-selected="false">Administración</button>
-                <button type="button" class="pestana" data-vista="estadisticas" aria-selected="false">Estadísticas</button>
-                <button type="button" class="pestana" data-vista="vetados" aria-selected="false">Vetados</button>
-            </nav>
+            <button type="button" class="boton-menu" id="boton-menu" aria-controls="menu-lateral" aria-expanded="false" aria-label="Abrir menú">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                    <path d="M4 7h16M4 12h16M4 17h16"></path>
+                </svg>
+            </button>
 
-            <div class="cabecera-lateral">
-                <div class="selector-idioma" role="group" aria-label="Idioma / Language">
-                    <button type="button" class="idioma" data-idioma="es" aria-pressed="true">ES</button>
-                    <button type="button" class="idioma" data-idioma="en" aria-pressed="false">EN</button>
+            <div class="menu-lateral" id="menu-lateral">
+                <div class="menu-lateral-cabecera">
+                    <span class="menu-lateral-titulo">Menú</span>
+                    <button type="button" class="boton-icono" id="menu-cerrar" aria-label="Cerrar menú">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                            <path d="M6 6l12 12M18 6L6 18"></path>
+                        </svg>
+                    </button>
                 </div>
-                <span class="etiqueta-sistema" id="estado-sistema">
-                    <span class="punto-estado"></span>
-                    <span id="estado-sistema-texto">Colecturía activa</span>
-                </span>
-                <span class="fecha-hoy" id="fecha-hoy"></span>
-                <span class="temporizador" id="temporizador" hidden>
-                    <span class="temporizador-etiqueta" id="temporizador-etiqueta">Faltan</span>
-                    <strong class="temporizador-valor" id="temporizador-valor">--:--:--</strong>
-                </span>
+
+                <nav class="pestanas" id="pestanas" aria-label="Secciones del sistema">
+                    <button type="button" class="pestana activa" data-vista="inicio" aria-selected="true">Inicio</button>
+                    <button type="button" class="pestana" data-vista="alumnos" aria-selected="false">Alumnos</button>
+                    <button type="button" class="pestana" data-vista="profesores" aria-selected="false">Profesores</button>
+                    <button type="button" class="pestana" data-vista="administracion" aria-selected="false">Administración</button>
+                    <button type="button" class="pestana" data-vista="estadisticas" aria-selected="false">Estadísticas</button>
+                    <button type="button" class="pestana" data-vista="vetados" aria-selected="false">Vetados</button>
+                <button type="button" class="pestana" data-vista="reportes" aria-selected="false">Reportes</button>
+                </nav>
+
+                <div class="cabecera-lateral">
+                    <div class="selector-idioma" role="group" aria-label="Idioma / Language">
+                        <button type="button" class="idioma" data-idioma="es" aria-pressed="true">ES</button>
+                        <button type="button" class="idioma" data-idioma="en" aria-pressed="false">EN</button>
+                    </div>
+                    <span class="etiqueta-sistema" id="estado-sistema">
+                        <span class="punto-estado"></span>
+                        <span id="estado-sistema-texto">Colecturía activa</span>
+                    </span>
+                    <span class="fecha-hoy" id="fecha-hoy"></span>
+                    <span class="temporizador" id="temporizador" hidden>
+                        <span class="temporizador-etiqueta" id="temporizador-etiqueta">Faltan</span>
+                        <strong class="temporizador-valor" id="temporizador-valor">--:--:--</strong>
+                    </span>
+                </div>
             </div>
         </div>
+        <div class="menu-capa" id="menu-capa" hidden aria-hidden="true"></div>
     </header>
 
     <main class="contenido" id="contenido">

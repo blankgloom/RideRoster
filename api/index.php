@@ -159,7 +159,7 @@ function companeros_validados(mixed $valores, string $codigoPropio): array
                 'codigo_invalido',
                 'El compañero ' . $codigo . ' no tiene un código válido.',
                 422,
-                ['formato' => 'Año (1 o 2 dígitos), sección (letra) y número de lista (2 dígitos); los grupos generales agregan G antes del número. Ejemplo: 2B03 o 2JG25']
+                ['formato' => 'Año (1 o 2 dígitos), sección (letra) y número de lista (2 dígitos); los grupos generales agregan G antes del número. Ejemplo: 2B03']
             );
         }
 
@@ -799,7 +799,7 @@ try {
                         'codigo_invalido',
                         'El código no cumple el formato requerido.',
                         422,
-                        ['formato' => 'Año (1 o 2 dígitos), sección (letra) y número de lista (2 dígitos); los grupos generales agregan G antes del número. Ejemplo: 2B03 o 2JG25']
+                        ['formato' => 'Año (1 o 2 dígitos), sección (letra) y número de lista (2 dígitos); los grupos generales agregan G antes del número. Ejemplo: 2B03']
                     );
                 }
 
@@ -1064,7 +1064,7 @@ try {
                         'codigo_invalido',
                         'El código no cumple el formato requerido.',
                         422,
-                        ['formato' => 'Año (1 o 2 dígitos), sección (letra) y número de lista (2 dígitos); los grupos generales agregan G antes del número. Ejemplo: 2B03 o 2JG25']
+                        ['formato' => 'Año (1 o 2 dígitos), sección (letra) y número de lista (2 dígitos); los grupos generales agregan G antes del número. Ejemplo: 2B03']
                     );
                 }
 
@@ -1847,6 +1847,51 @@ try {
             }
 
             responder_error('ruta_desconocida', 'Acción no disponible para vetados.');
+            break;
+
+        case 'reportes':
+            if ($metodo === 'GET') {
+                // Viajes realizados
+                $viajes = db()->query('SELECT v.id, p.nombre, p.destino, v.fecha, v.recaudado, v.personas, v.pasajeros
+                    FROM viajes v INNER JOIN paseos p ON p.id = v.paseo_id
+                    WHERE v.estado = "finalizado" OR v.fecha < CURDATE()
+                    ORDER BY v.fecha DESC LIMIT 50')->fetchAll();
+                foreach ($viajes as &$v) {
+                    $v['id'] = (int) $v['id'];
+                    $v['recaudado'] = (float) $v['recaudado'];
+                    $v['personas'] = (int) $v['personas'];
+                    $v['pasajeros'] = (int) $v['pasajeros'];
+                }
+
+                // Vetados por sección
+                $vetadosSeccion = db()->query('SELECT s.nombre AS seccion, COUNT(*) AS total
+                    FROM vetados v
+                    INNER JOIN alumnos a ON a.id = v.alumno_id
+                    LEFT JOIN secciones s ON s.id = a.seccion_id
+                    GROUP BY s.nombre ORDER BY total DESC')->fetchAll();
+                foreach ($vetadosSeccion as &$vs) { $vs['total'] = (int) $vs['total']; }
+
+                // Vetados por fecha
+                $vetadosFecha = db()->query('SELECT fecha, COUNT(*) AS total FROM vetados GROUP BY fecha ORDER BY fecha ASC')->fetchAll();
+                foreach ($vetadosFecha as &$vf) { $vf['total'] = (int) $vf['total']; }
+
+                // Totales
+                $totalAlumnos = (int) db()->query('SELECT COUNT(*) FROM alumnos')->fetchColumn();
+                $totalVetados = (int) db()->query('SELECT COUNT(*) FROM vetados')->fetchColumn();
+                $alumnosParticipantes = (int) db()->query('SELECT COUNT(DISTINCT codigo) FROM pasajeros')->fetchColumn();
+                $nuncaParticiparon = max(0, $totalAlumnos - $alumnosParticipantes);
+
+                responder_ok([
+                    'viajes' => $viajes,
+                    'vetados_seccion' => $vetadosSeccion,
+                    'vetados_fecha' => $vetadosFecha,
+                    'total_alumnos' => $totalAlumnos,
+                    'total_vetados' => $totalVetados,
+                    'alumnos_participantes' => $alumnosParticipantes,
+                    'nunca_participaron' => $nuncaParticiparon,
+                ]);
+            }
+            responder_error('ruta_desconocida', 'Acción no disponible para reportes.');
             break;
 
         default:

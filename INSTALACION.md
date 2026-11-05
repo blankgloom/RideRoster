@@ -203,7 +203,7 @@ datos de demostración.
 **"El código no cumple el formato requerido"**
 El código debe tener el formato `[Año][Sección][Número de lista]`, por ejemplo `2B03`:
 un o dos dígitos de año, una letra de sección y dos dígitos de número de lista. Los grupos
-generales llevan una `G` antes del número, como `2JG25`.
+generales llevan una `G` antes del número de lista.
 
 **Los cambios no aparecen en el navegador**
 Recarga con `Ctrl+F5` para descartar la caché del navegador.

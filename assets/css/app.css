@@ -424,7 +424,7 @@ body.menu-abierto {
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 1.5rem;
+    gap: 2rem;
     margin-bottom: 1.5rem;
     flex-wrap: wrap;
 }
@@ -453,8 +453,8 @@ body.menu-abierto {
 .metricas {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 1rem;
-    margin-bottom: 1.5rem;
+    gap: 2rem;
+    margin-bottom: 2rem;
 }
 
 .metrica {
@@ -524,14 +524,14 @@ body.menu-abierto {
 .rejilla-doble {
     display: grid;
     grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
-    gap: 1.5rem;
+    gap: 2rem;
     align-items: start;
 }
 
 .rejilla-estadisticas {
     display: grid;
     grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-    gap: 1.5rem;
+    gap: 2rem;
     align-items: start;
 }
 
@@ -700,14 +700,14 @@ body.menu-abierto {
 .rejilla-lateral {
     display: grid;
     grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr);
-    gap: 1.5rem;
+    gap: 2rem;
     align-items: start;
 }
 
 .columna {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 2rem;
     min-width: 0;
 }
 
@@ -777,7 +777,7 @@ body.menu-abierto {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 1.5rem;
+    gap: 2rem;
     flex-wrap: wrap;
 }
 
@@ -1865,7 +1865,7 @@ select.control {
 .modal-rejilla {
     display: grid;
     grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-    gap: 1.5rem;
+    gap: 2rem;
     align-items: start;
 }
 
@@ -2386,7 +2386,7 @@ select.control {
 .rejilla-asientos {
     display: grid;
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-    gap: 1.5rem;
+    gap: 2rem;
     align-items: start;
 }
 
@@ -2799,7 +2799,7 @@ select.control {
 .instalacion {
     width: min(720px, 100%);
     display: grid;
-    gap: 1.5rem;
+    gap: 2rem;
 }
 
 .instalacion-cabecera {
@@ -2858,7 +2858,7 @@ select.control {
 
 .datos-conexion {
     display: flex;
-    gap: 1.5rem;
+    gap: 2rem;
     flex-wrap: wrap;
     margin: 1.5rem 0 0;
     padding-top: 1rem;

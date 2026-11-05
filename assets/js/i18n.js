@@ -74,6 +74,8 @@
         'Autobús': 'Bus',
         'Año': 'Year',
         'Año escolar': 'School year',
+        'Año, sección y número de lista: 2B03 o 2JG25':
+            'Year, section and list number: 2B03 or 2JG25',
         'Aún no hay personal registrado.': 'No staff registered yet.',
         'Boletos cerrados': 'Tickets closed',
         'Bus': 'Bus',
@@ -242,6 +244,8 @@
         'Finalizado': 'Finished',
         'Finalizar viaje ahora': 'Finish trip now',
         'Firma': 'Signature',
+        'Formato inválido. Ejemplos: 2B03 o 2JG25':
+            'Invalid format. Examples: 2B03 or 2JG25',
         'Generar listado': 'Generate list',
         'Gestionar': 'Manage',
         'Gestionar viaje': 'Manage trip',
@@ -548,8 +552,8 @@
             'A student can declare at most 10 travel companions.',
         'Ubicación actualizada': 'Seat updated',
         'Ubicación actualizada.': 'Seat updated.',
-        'Usa el formato 2B03: año, sección y número de lista.':
-            'Use the format 2B03: year, section and list number.',
+        'Usa el formato 2B03 o el de un grupo general como 2JG25.':
+            'Use the 2B03 format or a general group code such as 2JG25.',
         'Valor por defecto del sistema, puedes ajustarlo para este viaje.':
             'The system default value; you can adjust it for this trip.',
         'Ver detalle': 'View details',

@@ -8,7 +8,9 @@ const NUMEROS_SALTADOS_PDF = [13, 18];
 
 function formato_codigo_valido(string $codigo): bool
 {
-    return (bool) preg_match('/^\d{1,2}[A-Za-z]\d{2}$/', trim($codigo));
+    // Formato institucional: año, sección y número de lista (2B03); los grupos
+    // generales agregan una G antes del número (2JG25).
+    return (bool) preg_match('/^\d{1,2}[A-Za-z]G?\d{2}$/i', trim($codigo));
 }
 
 function normalizar_codigo(string $codigo): string

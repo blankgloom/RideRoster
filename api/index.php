@@ -159,7 +159,7 @@ function companeros_validados(mixed $valores, string $codigoPropio): array
                 'codigo_invalido',
                 'El compañero ' . $codigo . ' no tiene un código válido.',
                 422,
-                ['formato' => 'Año (2 dígitos), sección (letra) y número de lista (2 dígitos). Ejemplo: 2B03']
+                ['formato' => 'Año (1 o 2 dígitos), sección (letra) y número de lista (2 dígitos); los grupos generales agregan G antes del número. Ejemplo: 2B03 o 2JG25']
             );
         }
 
@@ -799,7 +799,7 @@ try {
                         'codigo_invalido',
                         'El código no cumple el formato requerido.',
                         422,
-                        ['formato' => 'Año (2 dígitos), sección (letra) y número de lista (2 dígitos). Ejemplo: 2B03']
+                        ['formato' => 'Año (1 o 2 dígitos), sección (letra) y número de lista (2 dígitos); los grupos generales agregan G antes del número. Ejemplo: 2B03 o 2JG25']
                     );
                 }
 
@@ -1064,7 +1064,7 @@ try {
                         'codigo_invalido',
                         'El código no cumple el formato requerido.',
                         422,
-                        ['formato' => 'Año (2 dígitos), sección (letra) y número de lista (2 dígitos). Ejemplo: 2B03']
+                        ['formato' => 'Año (1 o 2 dígitos), sección (letra) y número de lista (2 dígitos); los grupos generales agregan G antes del número. Ejemplo: 2B03 o 2JG25']
                     );
                 }
 

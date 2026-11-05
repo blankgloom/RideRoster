@@ -22,6 +22,7 @@
         busquedaPaseos: '',
         viajeModalId: null,
         viajeModal: null,
+        viajeModalDirty: false,
         formPasajero: formPasajeroVacio(),
         temporizadorSugerencias: null,
         advertenciaCodigo: null,
@@ -207,6 +208,15 @@
     }
 
     function cerrarModal() {
+        if (estado.viajeModalDirty) {
+            var confirmar = confirm('¿Realmente desea salir? Tiene cambios sin guardar');
+            if (!confirmar) {
+                var btnGuardar = document.querySelector('#formulario-viaje button[type="submit"]');
+                if (btnGuardar) { btnGuardar.focus(); }
+                return;
+            }
+        }
+        estado.viajeModalDirty = false;
         cerrarSelector();
         $('#capa-modal').hidden = true;
         $('#modal-cuerpo').innerHTML = '';
@@ -1783,7 +1793,7 @@
         var contenido = '<div class="vista">' + encabezado +
             '<section class="tarjeta"><div class="tarjeta-cabecera"><h2>Agregar vetado</h2></div>' +
             '<div class="tarjeta-cuerpo compacto"><form class="formulario" id="form-vetado">' +
-            '<div class="campo"><label class="campo-etiqueta">Código del alumno</label><input class="control" id="vetado-codigo" placeholder="2B03"></div>' +
+            '<div class="campo"><label class="campo-etiqueta">Código del alumno</label><input class="control" id="vetado-codigo" placeholder="2B03 o 2JG25"></div>' +
             '<div class="campo"><label class="campo-etiqueta">Motivo</label><input class="control" id="vetado-motivo" placeholder="Motivo"></div>' +
             '<div class="grupo-botones inicio"><button type="button" class="boton boton-primario" data-accion="agregar-vetado">Agregar</button></div>' +
             '</form></div></section>' +
@@ -1823,7 +1833,7 @@
             (alumno ? ' data-id="' + alumno.id + '"' : '') + '>' +
             '<div class="formulario dos-columnas">' +
             '<div class="campo"><label class="campo-etiqueta" for="alumno-codigo">Código</label>' +
-            '<input type="text" class="control" id="alumno-codigo" name="codigo" placeholder="Ej. 2B03" value="' +
+            '<input type="text" class="control" id="alumno-codigo" name="codigo" placeholder="Ej. 2B03 o 2JG25" value="' +
             escapar(alumno ? alumno.codigo : '') + '"></div>' +
             '<div class="campo"><label class="campo-etiqueta" for="alumno-nombre">Nombre completo</label>' +
             '<input type="text" class="control" id="alumno-nombre" name="nombre" placeholder="Nombres y apellidos" value="' +
@@ -2140,8 +2150,8 @@
             return;
         }
 
-        if (!/^\d{1,2}[A-Za-z]\d{2}$/.test(codigo)) {
-            aviso('Código no válido', 'Usa el formato 2B03: año, sección y número de lista.', 'error');
+        if (!/^\d{1,2}[A-Za-z]G?\d{2}$/i.test(codigo)) {
+            aviso('Código no válido', 'Usa el formato 2B03 o el de un grupo general como 2JG25.', 'error');
             return;
         }
 
@@ -2252,6 +2262,7 @@
     }
 
     function pintarModalViaje() {
+        estado.viajeModalDirty = false;
         var viaje = estado.viajeModal;
 
         if (!viaje) {
@@ -2344,7 +2355,7 @@
             '<div class="formulario dos-columnas compacto-campos">' +
             '<div class="campo"><label class="campo-etiqueta" for="pasajero-codigo">Código del estudiante</label>' +
             '<div class="control-envoltura">' +
-            '<input type="text" class="control" id="pasajero-codigo" name="codigo" placeholder="Ej. 2B03" maxlength="6" autocomplete="off" value="' + escapar(estado.formPasajero.codigo) + '">' +
+            '<input type="text" class="control" id="pasajero-codigo" name="codigo" placeholder="Ej. 2B03 o 2JG25" maxlength="6" autocomplete="off" value="' + escapar(estado.formPasajero.codigo) + '">' +
             '<div class="autocompletar" id="sugerencias-pasajero" role="listbox" hidden></div>' +
             '</div>' +
             '<input type="hidden" id="pasajero-alumno" name="alumno_id" value="' + (estado.formPasajero.alumnoId || '') + '">' +
@@ -3017,18 +3028,18 @@
         }
 
         if (valor === '') {
-            ayuda.textContent = 'Año, sección y número de lista: 2B03';
+            ayuda.textContent = 'Año, sección y número de lista: 2B03 o 2JG25';
             ayuda.classList.remove('ayuda-error');
             return;
         }
 
-        if (/^\d{1,2}[A-Za-z]\d{2}$/.test(valor)) {
+        if (/^\d{1,2}[A-Za-z]G?\d{2}$/i.test(valor)) {
             ayuda.textContent = 'Código válido: ' + valor.toUpperCase();
             ayuda.classList.remove('ayuda-error');
             return;
         }
 
-        ayuda.textContent = 'Formato inválido. Ejemplo: 2B03';
+        ayuda.textContent = 'Formato inválido. Ejemplos: 2B03 o 2JG25';
         ayuda.classList.add('ayuda-error');
     }
 
@@ -3919,6 +3930,7 @@
             apiPost('viajes', datos, 'actualizar', { id: estado.viajeModalId }).then(function (respuesta) {
                 estado.viajeModal = respuesta.datos;
                 estado.viajeDetalle = respuesta.datos;
+                estado.viajeModalDirty = false;
                 pintarModalViaje();
                 aviso('Viaje actualizado', 'Los datos del viaje quedaron guardados.', 'exito');
                 refrescarFondo();
@@ -4133,6 +4145,12 @@
         document.addEventListener('click', manejarAcciones);
 
         document.addEventListener('submit', manejarEnvios);
+        document.addEventListener('input', function (evento) {
+            var objetivo = evento.target;
+            if (objetivo && objetivo.closest && objetivo.closest('#formulario-viaje')) {
+                estado.viajeModalDirty = true;
+            }
+        });
 
         document.addEventListener('input', function (evento) {
             if (evento.target.id === 'busqueda-pasajeros') {

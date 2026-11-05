@@ -25,7 +25,7 @@
         viajeModalId: null,
         viajeModal: null,
         viajeModalDirty: false,
-        formPasajero: formPasajeroVacio(),
+        formPasajero: { nombre: '', codigo: '', encargado: '', companeros: [], alumnoId: null, codigoAlumno: '', nombreAutomatico: false, conEncargado: false },
         temporizadorSugerencias: null,
         advertenciaCodigo: null,
         desborde: null,
@@ -1935,8 +1935,6 @@
             '<div class="metrica-valor">' + valor + '</div>' +
             '<div class="metrica-detalle">' + detalle + '</div></div>';
     }
-
-    function cargarVetados(limpiar) {
 
     function cargarVetados(limpiar) {
         if (limpiar) { estado.vetados = null; render(); }
@@ -4717,5 +4715,4 @@
     } else {
         iniciar();
     }
-}
 })();

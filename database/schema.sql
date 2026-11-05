@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS paseos (
     CONSTRAINT fk_paseos_profesor FOREIGN KEY (profesor_id) REFERENCES profesores (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS personal_salvamento (
+CREATE TABLE IF NOT EXISTS personal_asistencia (
     id         INT AUTO_INCREMENT PRIMARY KEY,
     nombre     VARCHAR(140) NOT NULL,
     puesto     VARCHAR(120) NULL,
@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS paseo_personal (
     personal_id INT NOT NULL,
     PRIMARY KEY (paseo_id, personal_id),
     CONSTRAINT fk_paseo_personal_paseo FOREIGN KEY (paseo_id) REFERENCES paseos (id) ON DELETE CASCADE,
-    CONSTRAINT fk_paseo_personal_persona FOREIGN KEY (personal_id) REFERENCES personal_salvamento (id) ON DELETE CASCADE
+    CONSTRAINT fk_paseo_personal_persona FOREIGN KEY (personal_id) REFERENCES personal_asistencia (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS viajes (
@@ -97,8 +97,10 @@ CREATE TABLE IF NOT EXISTS viajes (
     fecha         DATE NOT NULL,
     hora_salida   TIME NOT NULL,
     hora_retorno  TIME NULL,
-    capacidad_bus INT NOT NULL DEFAULT 55,
-    estado        ENUM('programado', 'en_curso', 'finalizado') NOT NULL DEFAULT 'programado',
+    capacidad_bus       INT NOT NULL DEFAULT 55,
+    profesor_id         INT NULL,
+    asientos_profesores INT NOT NULL DEFAULT 1,
+    estado              ENUM('programado', 'en_curso', 'finalizado') NOT NULL DEFAULT 'programado',
     boletos_cerrados TINYINT(1) NOT NULL DEFAULT 0,
     boletos_cerrados_en DATETIME NULL,
     notas         TEXT NULL,
@@ -115,6 +117,8 @@ CREATE TABLE IF NOT EXISTS pasajeros (
     codigo       VARCHAR(40) NOT NULL,
     alumno_id    INT NULL,
     encargado    VARCHAR(140) NULL,
+    correlativo  VARCHAR(40) NULL,
+    correlativo_encargado VARCHAR(40) NULL,
     creado_en    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_pasajeros_viaje FOREIGN KEY (viaje_id) REFERENCES viajes (id) ON DELETE CASCADE,
     CONSTRAINT fk_pasajeros_alumno FOREIGN KEY (alumno_id) REFERENCES alumnos (id) ON DELETE SET NULL,
@@ -127,10 +131,13 @@ CREATE TABLE IF NOT EXISTS pasajeros (
 -- los acomoda juntos al generar el plano.
 
 CREATE TABLE IF NOT EXISTS companeros (
-    id          INT AUTO_INCREMENT PRIMARY KEY,
-    pasajero_id INT NOT NULL,
-    codigo      VARCHAR(40) NOT NULL,
-    creado_en   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    pasajero_id   INT NOT NULL,
+    codigo        VARCHAR(40) NOT NULL,
+    con_encargado TINYINT(1) NOT NULL DEFAULT 0,
+    correlativo   VARCHAR(40) NULL,
+    correlativo_encargado VARCHAR(40) NULL,
+    creado_en     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_companeros (pasajero_id, codigo),
     INDEX idx_companeros_codigo (codigo),
     CONSTRAINT fk_companeros_pasajero FOREIGN KEY (pasajero_id) REFERENCES pasajeros (id) ON DELETE CASCADE
@@ -160,4 +167,13 @@ CREATE TABLE IF NOT EXISTS pagos (
     CONSTRAINT fk_pagos_viaje FOREIGN KEY (viaje_id) REFERENCES viajes (id) ON DELETE CASCADE,
     CONSTRAINT fk_pagos_pasajero FOREIGN KEY (pasajero_id) REFERENCES pasajeros (id) ON DELETE SET NULL,
     INDEX idx_pagos_viaje (viaje_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS vetados (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    alumno_id   INT NOT NULL,
+    motivo      VARCHAR(255) NULL,
+    fecha       DATE NOT NULL,
+    UNIQUE KEY uq_vetados_alumno (alumno_id),
+    CONSTRAINT fk_vetados_alumno FOREIGN KEY (alumno_id) REFERENCES alumnos (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

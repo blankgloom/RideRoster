@@ -122,8 +122,11 @@ function lista_de_codigos(mixed $valores): array
     $codigos = [];
 
     foreach ($valores as $valor) {
-        $codigo = normalizar_codigo((string) $valor);
+        if (is_array($valor)) {
+            $valor = $valor['codigo'] ?? '';
+        }
 
+        $codigo = normalizar_codigo((string) $valor);
         if ($codigo === '' || in_array($codigo, $codigos, true)) {
             continue;
         }
@@ -142,11 +145,31 @@ function lista_de_codigos(mixed $valores): array
  */
 function companeros_validados(mixed $valores, string $codigoPropio): array
 {
-    $codigos = lista_de_codigos($valores);
+    if (!is_array($valores)) {
+        return [];
+    }
+
     $propio = normalizar_codigo($codigoPropio);
+    $vistos = [];
     $validos = [];
 
-    foreach ($codigos as $codigo) {
+    foreach ($valores as $item) {
+        if (is_array($item)) {
+            $codigo = normalizar_codigo((string) ($item['codigo'] ?? ''));
+            $conEncargado = !empty($item['con_encargado']);
+            $correlativo = trim((string) ($item['correlativo'] ?? ''));
+            $correlativoEncargado = trim((string) ($item['correlativo_encargado'] ?? ''));
+        } else {
+            $codigo = normalizar_codigo((string) $item);
+            $conEncargado = false;
+            $correlativo = '';
+            $correlativoEncargado = '';
+        }
+
+        if ($codigo === '') {
+            continue;
+        }
+
         if ($codigo === $propio) {
             continue;
         }
@@ -156,11 +179,37 @@ function companeros_validados(mixed $valores, string $codigoPropio): array
                 'codigo_invalido',
                 'El compañero ' . $codigo . ' no tiene un código válido.',
                 422,
-                ['formato' => 'Año (2 dígitos), sección (letra) y número de lista (2 dígitos). Ejemplo: 2B03']
+                ['formato' => 'Año (1 o 2 dígitos), sección (letra) y número de lista (2 dígitos); los grupos generales agregan G antes del número. Ejemplo: 2B03']
             );
         }
 
-        $validos[] = $codigo;
+        if (isset($vistos[$codigo])) {
+            continue;
+        }
+
+        if ($correlativo === '') {
+            responder_error(
+                'correlativo_requerido',
+                'Falta el número correlativo del compañero ' . $codigo . '.',
+                422
+            );
+        }
+
+        if ($conEncargado && $correlativoEncargado === '') {
+            responder_error(
+                'correlativo_requerido',
+                'Falta el número correlativo del encargado del compañero ' . $codigo . '.',
+                422
+            );
+        }
+
+        $vistos[$codigo] = true;
+        $validos[] = [
+            'codigo'                 => $codigo,
+            'con_encargado'          => $conEncargado,
+            'correlativo'            => $correlativo,
+            'correlativo_encargado'  => $conEncargado ? $correlativoEncargado : null,
+        ];
     }
 
     if (count($validos) > MAX_COMPANEROS) {
@@ -219,7 +268,7 @@ function asignar_equipo(int $paseoId, array $nombres, array $ids): void
     }
 
     foreach ($nombres as $nombre) {
-        $existe = db()->prepare('SELECT id FROM personal_salvamento WHERE nombre = :nombre LIMIT 1');
+        $existe = db()->prepare('SELECT id FROM personal_asistencia WHERE nombre = :nombre LIMIT 1');
         $existe->execute([':nombre' => $nombre]);
         $fila = $existe->fetch();
 
@@ -228,7 +277,7 @@ function asignar_equipo(int $paseoId, array $nombres, array $ids): void
             continue;
         }
 
-        $nuevo = db()->prepare('INSERT INTO personal_salvamento (nombre) VALUES (:nombre)');
+        $nuevo = db()->prepare('INSERT INTO personal_asistencia (nombre) VALUES (:nombre)');
         $nuevo->execute([':nombre' => $nombre]);
         $personalIds[] = (int) db()->lastInsertId();
     }
@@ -256,7 +305,7 @@ function listar_paseos(): array
         $paseo['costo_persona'] = (float) $paseo['costo_persona'];
         $paseo['activo'] = (int) $paseo['activo'];
         $paseo['profesor_id'] = $paseo['profesor_id'] !== null ? (int) $paseo['profesor_id'] : null;
-        $paseo['equipo_salvamento'] = equipo_salvamento_de_paseo($paseo['id']);
+        $paseo['equipo_asistencia'] = equipo_asistencia_de_paseo($paseo['id']);
     }
 
     return $paseos;
@@ -264,7 +313,7 @@ function listar_paseos(): array
 
 function listar_personal(): array
 {
-    $personal = db()->query('SELECT id, nombre, puesto FROM personal_salvamento ORDER BY nombre ASC')->fetchAll();
+    $personal = db()->query('SELECT id, nombre, puesto FROM personal_asistencia ORDER BY nombre ASC')->fetchAll();
 
     foreach ($personal as &$persona) {
         $persona['id'] = (int) $persona['id'];
@@ -499,6 +548,8 @@ try {
                 $salida  = texto($datos, 'hora_salida');
                 $retorno = texto($datos, 'hora_retorno');
                 $capacidad = (int) numero($datos, 'capacidad_bus', capacidad_predeterminada());
+                $profesorId = (int) ($datos['profesor_id'] ?? 0);
+                $asientosProfesores = (int) numero($datos, 'asientos_profesores', 1);
 
                 if ($paseoId <= 0) {
                     responder_error('paseo_requerido', 'Selecciona el paseo que se va a realizar.');
@@ -512,16 +563,18 @@ try {
                     responder_error('capacidad_invalida', 'La capacidad debe dejar al menos un asiento para pasajeros.');
                 }
 
-                $sentencia = db()->prepare('INSERT INTO viajes (paseo_id, fecha, hora_salida, hora_retorno, capacidad_bus, estado, notas)
-                                            VALUES (:paseo, :fecha, :salida, :retorno, :capacidad, :estado, :notas)');
+                $sentencia = db()->prepare('INSERT INTO viajes (paseo_id, fecha, hora_salida, hora_retorno, capacidad_bus, profesor_id, asientos_profesores, estado, notas)
+                                            VALUES (:paseo, :fecha, :salida, :retorno, :capacidad, :profesor, :asientos_prof, :estado, :notas)');
                 $sentencia->execute([
-                    ':paseo'     => $paseoId,
-                    ':fecha'     => $fecha,
-                    ':salida'    => $salida . ':00',
-                    ':retorno'   => $retorno !== '' ? $retorno . ':00' : null,
-                    ':capacidad' => $capacidad,
-                    ':estado'    => 'programado',
-                    ':notas'     => texto($datos, 'notas') !== '' ? texto($datos, 'notas') : null,
+                    ':paseo'         => $paseoId,
+                    ':fecha'         => $fecha,
+                    ':salida'        => $salida . ':00',
+                    ':retorno'       => $retorno !== '' ? $retorno . ':00' : null,
+                    ':capacidad'     => $capacidad,
+                    ':profesor'      => $profesorId > 0 ? $profesorId : null,
+                    ':asientos_prof' => $asientosProfesores > 0 ? $asientosProfesores : 1,
+                    ':estado'        => 'programado',
+                    ':notas'         => texto($datos, 'notas') !== '' ? texto($datos, 'notas') : null,
                 ]);
 
                 $viajeId = (int) db()->lastInsertId();
@@ -539,6 +592,8 @@ try {
                 $salida    = texto($datos, 'hora_salida', $detalle['hora_salida']);
                 $retorno   = texto($datos, 'hora_retorno', (string) $detalle['hora_retorno']);
                 $capacidad = (int) numero($datos, 'capacidad_bus', $detalle['capacidad_bus']);
+                $profesorId = array_key_exists('profesor_id', $datos) ? (int) $datos['profesor_id'] : $detalle['profesor_id'];
+                $asientosProfesores = array_key_exists('asientos_profesores', $datos) ? (int) $datos['asientos_profesores'] : $detalle['asientos_profesores'];
 
                 if ($capacidad < $detalle['ocupados']) {
                     responder_error(
@@ -549,15 +604,18 @@ try {
 
                 $sentencia = db()->prepare('UPDATE viajes
                                             SET fecha = :fecha, hora_salida = :salida, hora_retorno = :retorno,
-                                                capacidad_bus = :capacidad, notas = :notas
+                                                capacidad_bus = :capacidad, profesor_id = :profesor,
+                                                asientos_profesores = :asientos_prof, notas = :notas
                                             WHERE id = :id');
                 $sentencia->execute([
-                    ':fecha'     => $fecha,
-                    ':salida'    => $salida . ':00',
-                    ':retorno'   => $retorno !== '' ? $retorno . ':00' : null,
-                    ':capacidad' => $capacidad,
-                    ':notas'     => texto($datos, 'notas') !== '' ? texto($datos, 'notas') : null,
-                    ':id'        => $id,
+                    ':fecha'         => $fecha,
+                    ':salida'        => $salida . ':00',
+                    ':retorno'       => $retorno !== '' ? $retorno . ':00' : null,
+                    ':capacidad'     => $capacidad,
+                    ':profesor'      => $profesorId > 0 ? $profesorId : null,
+                    ':asientos_prof' => $asientosProfesores > 0 ? $asientosProfesores : 1,
+                    ':notas'         => texto($datos, 'notas') !== '' ? texto($datos, 'notas') : null,
+                    ':id'            => $id,
                 ]);
 
                 responder_ok(detalle_viaje($id), ['mensaje' => 'Viaje actualizado.']);
@@ -577,6 +635,24 @@ try {
                 responder_ok(detalle_viaje($id), [
                     'mensaje' => 'Los boletos quedaron cerrados: ya no se pueden inscribir más estudiantes.',
                 ]);
+            }
+
+            if ($metodo === 'POST' && $accion === 'reabrir') {
+                $detalle = detalle_viaje($id);
+                if ($detalle === null) {
+                    responder_error('no_encontrado', 'El viaje solicitado no existe.', 404);
+                }
+                $fecha = texto($datos, 'fecha', $detalle['fecha']);
+                $borrar = !empty($datos['borrar']);
+                if ($borrar) {
+                    db()->prepare('DELETE FROM pagos WHERE viaje_id = :id')->execute([':id' => $id]);
+                    db()->prepare('DELETE FROM asientos WHERE viaje_id = :id')->execute([':id' => $id]);
+                    db()->prepare('DELETE FROM pasajeros WHERE viaje_id = :id')->execute([':id' => $id]);
+                    db()->prepare('DELETE FROM companeros WHERE pasajero_id NOT IN (SELECT id FROM pasajeros)')->execute();
+                }
+                db()->prepare('UPDATE viajes SET fecha = :fecha, estado = :estado WHERE id = :id')
+                    ->execute([':fecha' => $fecha, ':estado' => 'programado', ':id' => $id]);
+                responder_ok(detalle_viaje($id), ['mensaje' => 'Viaje reabierto.']);
             }
 
             if ($metodo === 'POST' && $accion === 'estado') {
@@ -752,6 +828,8 @@ try {
                 $nombre    = texto($datos, 'nombre');
                 $codigo    = texto($datos, 'codigo');
                 $encargado = texto($datos, 'encargado');
+                $correlativo = texto($datos, 'correlativo');
+                $correlativoEncargado = texto($datos, 'correlativo_encargado');
                 $forzar    = !empty($datos['forzar']);
                 $desborde  = texto($datos, 'desborde', '');
                 $viajeDestino = (int) ($datos['viaje_destino'] ?? 0);
@@ -769,7 +847,7 @@ try {
                         'codigo_invalido',
                         'El código no cumple el formato requerido.',
                         422,
-                        ['formato' => 'Año (2 dígitos), sección (letra) y número de lista (2 dígitos). Ejemplo: 2B03']
+                        ['formato' => 'Año (1 o 2 dígitos), sección (letra) y número de lista (2 dígitos); los grupos generales agregan G antes del número. Ejemplo: 2B03']
                     );
                 }
 
@@ -780,6 +858,15 @@ try {
                     $nombre = (string) $alumno['nombre'];
                 }
 
+                // Validación de vetados
+                if ($alumno !== null) {
+                    $vetado = db()->prepare('SELECT id FROM vetados WHERE alumno_id = :id');
+                    $vetado->execute([':id' => (int) $alumno['id']]);
+                    if ($vetado->fetch()) {
+                        responder_error('estudiante_vetado', 'Este estudiante tiene prohibido ir a salidas, está vetado.', 409);
+                    }
+                }
+
                 if ($nombre === '') {
                     responder_error(
                         'datos_incompletos',
@@ -787,6 +874,14 @@ try {
                         422,
                         ['codigo' => normalizar_codigo($codigo)]
                     );
+                }
+
+                if ($correlativo === '') {
+                    responder_error('correlativo_requerido', 'Falta el número correlativo del estudiante.', 422);
+                }
+
+                if ($encargado !== '' && $correlativoEncargado === '') {
+                    responder_error('correlativo_requerido', 'Falta el número correlativo del encargado.', 422);
                 }
 
                 $companeros = companeros_validados($datos['companeros'] ?? [], $codigo);
@@ -866,20 +961,44 @@ try {
                     $viajeInscripcion = crear_bus_hermano($viajeId);
                 }
 
-                $sentencia = db()->prepare('INSERT INTO pasajeros (viaje_id, nombre, codigo, encargado, alumno_id)
-                                            VALUES (:viaje, :nombre, :codigo, :encargado, :alumno)');
+                $sentencia = db()->prepare('INSERT INTO pasajeros (viaje_id, nombre, codigo, encargado, alumno_id, correlativo, correlativo_encargado)
+                                            VALUES (:viaje, :nombre, :codigo, :encargado, :alumno, :correlativo, :correlativo_encargado)');
                 $sentencia->execute([
                     ':viaje'     => $viajeInscripcion,
                     ':nombre'    => $nombre,
                     ':codigo'    => normalizar_codigo($codigo),
                     ':encargado' => $encargado !== '' ? $encargado : null,
                     ':alumno'    => $alumnoId,
+                    ':correlativo' => $correlativo,
+                    ':correlativo_encargado' => $encargado !== '' ? $correlativoEncargado : null,
                 ]);
 
                 $pasajeroId = (int) db()->lastInsertId();
 
                 if ($companeros !== []) {
                     guardar_companeros($pasajeroId, $companeros);
+                }
+
+                // Pago automático: al agregar el alumno se marca como pagado por el
+                // costo completo (estudiante y, si aplica, su encargado).
+                $costoPersona = (float) ($detalle['costo_persona'] ?? 0);
+                $personas = $encargado !== '' ? 2 : 1;
+                foreach ($companeros as $comp) {
+                    $personas += is_array($comp) && !empty($comp['con_encargado']) ? 2 : 1;
+                }
+                $montoPago = round($costoPersona * $personas, 2);
+
+                if ($montoPago > 0) {
+                    db()->prepare('INSERT INTO pagos (viaje_id, pasajero_id, monto, metodo, fecha, nota)
+                                    VALUES (:viaje, :pasajero, :monto, :metodo, :fecha, :nota)')
+                        ->execute([
+                            ':viaje'    => $viajeInscripcion,
+                            ':pasajero' => $pasajeroId,
+                            ':monto'    => $montoPago,
+                            ':metodo'   => 'efectivo',
+                            ':fecha'    => date('Y-m-d'),
+                            ':nota'     => 'Pago automático al agregar al viaje',
+                        ]);
                 }
 
                 incorporar_pasajero($viajeInscripcion, $pasajeroId);
@@ -985,7 +1104,7 @@ try {
             }
 
             if ($metodo === 'POST' && $accion === 'actualizar') {
-                $fila = db()->prepare('SELECT viaje_id, encargado FROM pasajeros WHERE id = :id');
+                $fila = db()->prepare('SELECT viaje_id, encargado, correlativo, correlativo_encargado FROM pasajeros WHERE id = :id');
                 $fila->execute([':id' => $id]);
                 $registro = $fila->fetch();
 
@@ -995,7 +1114,17 @@ try {
 
                 $detalle = detalle_viaje((int) $registro['viaje_id']);
                 $encargadoNuevo = texto($datos, 'encargado');
+                $correlativoNuevo = texto($datos, 'correlativo');
+                $correlativoEncargadoNuevo = texto($datos, 'correlativo_encargado');
                 $codigoNuevo = texto($datos, 'codigo');
+
+                if ($correlativoNuevo === '') {
+                    $correlativoNuevo = (string) ($registro['correlativo'] ?? '');
+                }
+
+                if ($correlativoEncargadoNuevo === '') {
+                    $correlativoEncargadoNuevo = (string) ($registro['correlativo_encargado'] ?? '');
+                }
                 $teniaEncargado = $registro['encargado'] !== null && $registro['encargado'] !== '';
 
                 if (!formato_codigo_valido($codigoNuevo)) {
@@ -1003,7 +1132,7 @@ try {
                         'codigo_invalido',
                         'El código no cumple el formato requerido.',
                         422,
-                        ['formato' => 'Año (2 dígitos), sección (letra) y número de lista (2 dígitos). Ejemplo: 2B03']
+                        ['formato' => 'Año (1 o 2 dígitos), sección (letra) y número de lista (2 dígitos); los grupos generales agregan G antes del número. Ejemplo: 2B03']
                     );
                 }
 
@@ -1022,6 +1151,14 @@ try {
                         422,
                         ['codigo' => normalizar_codigo($codigoNuevo)]
                     );
+                }
+
+                if ($correlativoNuevo === '') {
+                    responder_error('correlativo_requerido', 'Falta el número correlativo del estudiante.', 422);
+                }
+
+                if ($encargadoNuevo !== '' && $correlativoEncargadoNuevo === '') {
+                    responder_error('correlativo_requerido', 'Falta el número correlativo del encargado.', 422);
                 }
 
                 $companeros = companeros_validados($datos['companeros'] ?? [], $codigoNuevo);
@@ -1045,13 +1182,16 @@ try {
                 }
 
                 $sentencia = db()->prepare('UPDATE pasajeros
-                                            SET nombre = :nombre, codigo = :codigo, encargado = :encargado, alumno_id = :alumno
+                                            SET nombre = :nombre, codigo = :codigo, encargado = :encargado, alumno_id = :alumno,
+                                                correlativo = :correlativo, correlativo_encargado = :correlativo_encargado
                                             WHERE id = :id');
                 $sentencia->execute([
                     ':nombre'    => $nombreNuevo,
                     ':codigo'    => normalizar_codigo($codigoNuevo),
                     ':encargado' => $encargadoNuevo !== '' ? $encargadoNuevo : null,
                     ':alumno'    => $alumno !== null ? (int) $alumno['id'] : null,
+                    ':correlativo' => $correlativoNuevo,
+                    ':correlativo_encargado' => $encargadoNuevo !== '' ? $correlativoEncargadoNuevo : null,
                     ':id'        => $id,
                 ]);
 
@@ -1447,7 +1587,7 @@ try {
                     responder_error('datos_incompletos', 'El nombre del personal es obligatorio.');
                 }
 
-                $sentencia = db()->prepare('INSERT INTO personal_salvamento (nombre, puesto) VALUES (:nombre, :puesto)');
+                $sentencia = db()->prepare('INSERT INTO personal_asistencia (nombre, puesto) VALUES (:nombre, :puesto)');
                 $sentencia->execute([
                     ':nombre' => $nombre,
                     ':puesto' => $puesto !== '' ? $puesto : null,
@@ -1458,7 +1598,7 @@ try {
 
             if ($metodo === 'POST' && $accion === 'eliminar') {
                 db()->prepare('DELETE FROM paseo_personal WHERE personal_id = :id')->execute([':id' => $id]);
-                db()->prepare('DELETE FROM personal_salvamento WHERE id = :id')->execute([':id' => $id]);
+                db()->prepare('DELETE FROM personal_asistencia WHERE id = :id')->execute([':id' => $id]);
 
                 responder_ok(listar_personal(), ['mensaje' => 'Personal eliminado.']);
             }
@@ -1747,6 +1887,150 @@ try {
             }
 
             responder_error('ruta_desconocida', 'Acción no disponible para parámetros.');
+            break;
+
+        case 'vetados':
+            if ($metodo === 'GET') {
+                $filas = db()->query('SELECT v.id, v.alumno_id, v.motivo, v.fecha, a.codigo, a.nombre
+                                      FROM vetados v
+                                      INNER JOIN alumnos a ON a.id = v.alumno_id
+                                      ORDER BY a.nombre ASC')->fetchAll();
+                foreach ($filas as &$f) {
+                    $f['id'] = (int) $f['id'];
+                    $f['alumno_id'] = (int) $f['alumno_id'];
+                }
+                responder_ok($filas);
+            }
+
+            if ($metodo === 'POST' && $accion === '') {
+                $codigo = texto($datos, 'codigo');
+                $alumno = alumno_por_codigo($codigo);
+                if ($alumno === null) {
+                    responder_error('no_encontrado', 'El alumno no existe en el padrón.', 404);
+                }
+                $alumnoId = (int) $alumno['id'];
+                $existe = db()->prepare('SELECT id FROM vetados WHERE alumno_id = :id');
+                $existe->execute([':id' => $alumnoId]);
+                if ($existe->fetch()) {
+                    responder_error('ya_vetado', 'El alumno ya está en la lista de vetados.', 409);
+                }
+                db()->prepare('INSERT INTO vetados (alumno_id, motivo, fecha) VALUES (:a, :m, :f)')
+                    ->execute([':a' => $alumnoId, ':m' => texto($datos, 'motivo') ?: null, ':f' => date('Y-m-d')]);
+                responder_ok(null, ['mensaje' => 'Estudiante agregado a vetados.']);
+            }
+
+            if ($metodo === 'POST' && $accion === 'eliminar') {
+                $id = (int) ($datos['id'] ?? $id);
+                db()->prepare('DELETE FROM vetados WHERE id = :id')->execute([':id' => $id]);
+                responder_ok(null, ['mensaje' => 'Estudiante removido de vetados.']);
+            }
+
+            responder_error('ruta_desconocida', 'Acción no disponible para vetados.');
+            break;
+
+        case 'reportes':
+            if ($metodo === 'GET') {
+                $periodo = (string) ($_GET['periodo'] ?? 'anual');
+                $rango = rango_estadistico($periodo);
+                $desde = $rango['desde'];
+                $hasta = $rango['hasta'];
+
+                // Viajes realizados en el rango
+                $viajes = db()->query('SELECT v.id, p.nombre, p.destino, v.fecha, v.capacidad_bus,
+                    (SELECT COALESCE(SUM(monto),0) FROM pagos pg WHERE pg.viaje_id = v.id) AS recaudado,
+                    (SELECT COUNT(*) FROM pasajeros ps WHERE ps.viaje_id = v.id) AS pasajeros,
+                    (SELECT COUNT(*) FROM pasajeros ps WHERE ps.viaje_id = v.id AND ps.encargado IS NOT NULL AND CHAR_LENGTH(ps.encargado)>0) AS acompanantes
+                    FROM viajes v INNER JOIN paseos p ON p.id = v.paseo_id
+                    WHERE (v.estado = "finalizado" OR v.fecha < CURDATE())
+                      AND v.fecha >= ' . db()->quote($desde) . ' AND v.fecha <= ' . db()->quote($hasta) . '
+                    ORDER BY v.fecha DESC LIMIT 100')->fetchAll();
+                foreach ($viajes as &$v) {
+                    $v['id'] = (int) $v['id'];
+                    $v['recaudado'] = (float) $v['recaudado'];
+                    $v['pasajeros'] = (int) $v['pasajeros'];
+                    $v['acompanantes'] = (int) $v['acompanantes'];
+                    $v['personas'] = $v['pasajeros'] + $v['acompanantes'];
+                    $v['capacidad_bus'] = (int) $v['capacidad_bus'];
+                    $v['ocupacion'] = $v['capacidad_bus'] > 0 ? round($v['personas'] / $v['capacidad_bus'] * 100, 1) : 0;
+                }
+
+                // Destinos ranking
+                $destinos = db()->query('SELECT p.destino, COUNT(DISTINCT v.id) AS viajes, COALESCE(SUM(vp.personas),0) AS personas
+                    FROM viajes v INNER JOIN paseos p ON p.id = v.paseo_id
+                    LEFT JOIN (SELECT viaje_id, COUNT(*) AS personas FROM pasajeros GROUP BY viaje_id) vp ON vp.viaje_id = v.id
+                    WHERE (v.estado = "finalizado" OR v.fecha < CURDATE())
+                      AND v.fecha >= ' . db()->quote($desde) . ' AND v.fecha <= ' . db()->quote($hasta) . '
+                    GROUP BY p.destino ORDER BY personas DESC')->fetchAll();
+                foreach ($destinos as &$d) {
+                    $d['viajes'] = (int) $d['viajes'];
+                    $d['personas'] = (int) $d['personas'];
+                }
+
+                // Participación por sección
+                $secciones = db()->query('SELECT s.nombre AS seccion, COUNT(DISTINCT a.id) AS alumnos
+                    FROM pasajeros ps
+                    INNER JOIN viajes v ON v.id = ps.viaje_id
+                    LEFT JOIN alumnos a ON a.id = ps.alumno_id
+                    LEFT JOIN secciones s ON s.id = a.seccion_id
+                    WHERE (v.estado = "finalizado" OR v.fecha < CURDATE())
+                      AND v.fecha >= ' . db()->quote($desde) . ' AND v.fecha <= ' . db()->quote($hasta) . '
+                    GROUP BY s.nombre ORDER BY alumnos DESC')->fetchAll();
+                foreach ($secciones as &$sc) { $sc['alumnos'] = (int) $sc['alumnos']; }
+
+                // Recaudación mensual
+                $mensual = db()->query('SELECT DATE_FORMAT(v.fecha, "%Y-%m") AS mes, COALESCE(SUM(pg.monto),0) AS total
+                    FROM viajes v
+                    LEFT JOIN pagos pg ON pg.viaje_id = v.id
+                    WHERE (v.estado = "finalizado" OR v.fecha < CURDATE())
+                      AND v.fecha >= ' . db()->quote($desde) . ' AND v.fecha <= ' . db()->quote($hasta) . '
+                    GROUP BY mes ORDER BY mes ASC')->fetchAll();
+                foreach ($mensual as &$m) { $m['total'] = (float) $m['total']; }
+
+                // Ocupación promedio
+                $totalPersonas = 0; $totalCapacidad = 0;
+                foreach ($viajes as $v) { $totalPersonas += $v['personas']; $totalCapacidad += $v['capacidad_bus']; }
+                $ocupacionPromedio = $totalCapacidad > 0 ? round($totalPersonas / $totalCapacidad * 100, 1) : 0;
+
+                // Vetados
+                $vetadosSeccion = db()->query('SELECT s.nombre AS seccion, COUNT(*) AS total
+                    FROM vetados v
+                    INNER JOIN alumnos a ON a.id = v.alumno_id
+                    LEFT JOIN secciones s ON s.id = a.seccion_id
+                    GROUP BY s.nombre ORDER BY total DESC')->fetchAll();
+                foreach ($vetadosSeccion as &$vs) { $vs['total'] = (int) $vs['total']; }
+
+                $vetadosFecha = db()->query('SELECT fecha, COUNT(*) AS total FROM vetados GROUP BY fecha ORDER BY fecha ASC')->fetchAll();
+                foreach ($vetadosFecha as &$vf) { $vf['total'] = (int) $vf['total']; }
+
+                $totalAlumnos = (int) db()->query('SELECT COUNT(*) FROM alumnos')->fetchColumn();
+                $totalVetados = (int) db()->query('SELECT COUNT(*) FROM vetados')->fetchColumn();
+                $alumnosParticipantes = (int) db()->query('SELECT COUNT(DISTINCT codigo) FROM pasajeros')->fetchColumn();
+                $nuncaParticiparon = max(0, $totalAlumnos - $alumnosParticipantes);
+
+                // Listas de alumnos: participantes por código (nombre del pasajero o del padrón)
+                $participantes = db()->query('SELECT ps.codigo, MAX(ps.nombre) AS nombre FROM pasajeros ps GROUP BY ps.codigo ORDER BY nombre ASC')->fetchAll();
+                foreach ($participantes as &$p) { $p['id'] = 0; }
+                $noParticipantes = db()->query('SELECT a.id, a.codigo, a.nombre FROM alumnos a WHERE a.codigo NOT IN (SELECT DISTINCT codigo FROM pasajeros) ORDER BY a.nombre ASC')->fetchAll();
+                foreach ($noParticipantes as &$np) { $np['id'] = (int) $np['id']; }
+
+                responder_ok([
+                    'viajes' => $viajes,
+                    'destinos' => $destinos,
+                    'secciones' => $secciones,
+                    'mensual' => $mensual,
+                    'ocupacion_promedio' => $ocupacionPromedio,
+                    'vetados_seccion' => $vetadosSeccion,
+                    'vetados_fecha' => $vetadosFecha,
+                    'total_alumnos' => $totalAlumnos,
+                    'total_vetados' => $totalVetados,
+                    'alumnos_participantes' => $alumnosParticipantes,
+                    'nunca_participaron' => $nuncaParticiparon,
+                    'participantes' => $participantes,
+                    'no_participantes' => $noParticipantes,
+                    'rango' => $rango,
+                ]);
+            }
+            responder_error('ruta_desconocida', 'Acción no disponible para reportes.');
             break;
 
         default:

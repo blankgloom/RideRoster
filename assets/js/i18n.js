@@ -36,6 +36,7 @@
      */
     var DICCIONARIO = {
         ': solo completa lo que falta.': ': it only fills in what is missing.',
+        'Abrir menú': 'Open menu',
         'Acomodar en otro bus de la salida': 'Seat in another bus of the departure',
         'Acompañante': 'Companion',
         'Acompañantes': 'Companions',
@@ -66,7 +67,7 @@
         'Apellidos': 'Last names',
         'Asientos compactados': 'Seats compacted',
         'Asientos de personal': 'Staff seats',
-        'Asientos totales, incluyendo al profesor y al comando de salvamento.':
+        'Asientos totales, incluyendo al profesor y al personal de asistencia.':
             'Total seats, including the teacher and the safety team.',
         'Asignación de asientos': 'Seat assignment',
         'Aumenta la capacidad del bus actual para que la persona quepa.':
@@ -74,6 +75,8 @@
         'Autobús': 'Bus',
         'Año': 'Year',
         'Año escolar': 'School year',
+        'Año, sección y número de lista (G en generales): 2B03':
+            'Year, section and list number (G in general groups): 2B03',
         'Aún no hay personal registrado.': 'No staff registered yet.',
         'Boletos cerrados': 'Tickets closed',
         'Bus': 'Bus',
@@ -103,6 +106,7 @@
         'Catálogo docente': 'Teacher catalog',
         'Cerrar': 'Close',
         'Cerrar huecos': 'Close gaps',
+        'Cerrar menú': 'Close menu',
         'Cobrar lo pendiente': 'Collect what is pending',
         'Colecturía activa': 'Transport office active',
         'Colecturía del Instituto Nacional de Apopa':
@@ -227,7 +231,7 @@
         'Estudiantes pasajeros': 'Student passengers',
         'Escribe el nombre: ese código no está en el padrón.':
             'Type the name: that code is not in the registry.',
-        'Escribe el nombre del personal de salvamento.':
+        'Escribe el nombre del personal de asistencia.':
             'Type the name of the safety staff member.',
         'Escribe un código: 2B07': 'Type a code: 2B07',
         'Exportar PDF': 'Export to PDF',
@@ -242,6 +246,8 @@
         'Finalizado': 'Finished',
         'Finalizar viaje ahora': 'Finish trip now',
         'Firma': 'Signature',
+        'Formato inválido. Ejemplo: 2B03':
+            'Invalid format. Example: 2B03',
         'Generar listado': 'Generate list',
         'Gestionar': 'Manage',
         'Gestionar viaje': 'Manage trip',
@@ -314,6 +320,7 @@
         'Los viajes se muestran en la pestaña Inicio': 'Trips show up on the Home tab',
         'Marca al menos un estudiante para cambiarlo de bus.':
             'Select at least one student to move them to another bus.',
+        'Menú': 'Menu',
         'Monto': 'Amount',
         'Mover a otro bus': 'Move to another bus',
         'Mover los seleccionados al bus': 'Move the selected ones to the bus',
@@ -382,7 +389,8 @@
         'Ocupación del autobús': 'Bus occupancy',
         'Ocupación promedio': 'Average occupancy',
         'Ocupación por autobús': 'Occupancy per bus',
-        'Opcional': 'Optional',
+        'Opcional. Agrega todos los códigos del grupito y se les asignan asientos juntos.':
+            'Optional. Add all the codes of the group and they will be seated together.',
         'Orden': 'Order',
         'Orden de abordaje': 'Boarding order',
         'Orden de inscripción': 'Registration order',
@@ -420,8 +428,8 @@
         'Permiso': 'Permission',
         'Permiso de salida': 'Exit permission',
         'Personal a bordo': 'Staff on board',
-        'Personal de comandos de salvamento': 'Water rescue command staff',
-        'Personal de salvamento': 'Safety staff',
+        'Personal de Asistencia': 'Water rescue command staff',
+        'Personal de Asistencia': 'Safety staff',
         'Personal del viaje': 'Trip staff',
         'Personal eliminado': 'Staff removed',
         'Personal eliminado.': 'Staff removed.',
@@ -471,7 +479,7 @@
             'RideRoster · School trip management system',
         'Salida': 'Departure',
         'Salidas realizadas': 'Departures completed',
-        'Salvamento': 'Safety',
+        'Asistencia': 'Safety',
         'Se busca por nombre, cargo o código en el catálogo de docentes.':
             'Search by name, role or code in the teacher catalog.',
         'Se borrará el viaje. Si ya tiene estudiantes o pagos, se pedirá una segunda confirmación.':
@@ -512,7 +520,7 @@
         'Sin alumnos que coincidan': 'No matching students',
         'Sin asignar': 'Unassigned',
         'Sin cargo registrado': 'No role registered',
-        'Sin comandos de salvamento asignados': 'No safety command assigned',
+        'Sin personal de asistencia asignados': 'No safety command assigned',
         'Sin encargado': 'No guardian',
         'Sin especialidad': 'No specialty',
         'Sin estudiantes': 'No students',
@@ -548,8 +556,8 @@
             'A student can declare at most 10 travel companions.',
         'Ubicación actualizada': 'Seat updated',
         'Ubicación actualizada.': 'Seat updated.',
-        'Usa el formato 2B03: año, sección y número de lista.':
-            'Use the format 2B03: year, section and list number.',
+        'Usa el formato 2B03 o año, sección, G y número en generales.':
+            'Use the 2B03 format or year, section, G and number for general groups.',
         'Valor por defecto del sistema, puedes ajustarlo para este viaje.':
             'The system default value; you can adjust it for this trip.',
         'Ver detalle': 'View details',
@@ -631,7 +639,7 @@
         'El viaje solicitado no existe.': 'The requested trip does not exist.',
         'asientos disponibles': 'available seats',
         'asientos utilizados': 'seats used',
-        'docentes y comandos de salvamento': 'teachers and safety command staff',
+        'docentes y personal de asistencia': 'teachers and safety command staff',
         'el bus vuelve a quedar lleno de forma continua.':
             'the bus becomes full again over and over.',
         'estudiantes por salida': 'students per departure',
@@ -648,8 +656,64 @@
         'sin encargado asignado': 'no guardian assigned',
         'inscritos · ordenados según se agregaron':
             'enrolled · listed in the order they were added',
-        'Salida hace': 'Departed'
+        'Salida hace': 'Departed',
+        'Viaje actual, control de pasajeros y respaldo de los viajes anteriores.': 'Current trip, passenger control and backup of previous trips.',
+        'N.º': 'No.',
+        'Cerrar boletos': 'Close tickets',
+        'Agregar estudiante': 'Add student',
+        'Deshacer': 'Undo',
+        'Manage': 'Manage',
+        'Details': 'Details',
+        'N.º correlativo del estudiante': 'Student correlative number',
+        'N.º correlativo del encargado': 'Guardian correlative number',
+        'N.º correlativo': 'Correlative number',
+        'Número manual': 'Manual number',
+        'Falta el número correlativo': 'Missing correlative number',
+        'Indica el número correlativo del estudiante.': 'Enter the student correlative number.',
+        'Indica el número correlativo del encargado.': 'Enter the guardian correlative number.',
+        'Indica el número correlativo de cada compañero y de su encargado.': 'Enter the correlative number of each companion and their guardian.',
+        'Encargado · N.º ': 'Guardian · No. ',
+        'Selecciona un estudiante y elige el asiento exacto que ocupará, o arrástralo hasta la butaca. Con': 'Select a student and choose the exact seat they will take, or drag them to the seat. With',
+        '55 asientos': '55 seats',
+        'reservados al personal': 'reserved for staff',
+        'de asientos disponibles': 'seats available',
+        'ocupados': 'occupied',
+        'cupos libres': 'seats available',
+        'personas': 'people',
+        'pasajeros': 'passengers',
+        'alumnos en': 'students in',
+        'alumnos': 'students',
+        'secciones': 'sections',
+        'bus(es) cubriendo': 'bus(es) covering'
     };
+
+    /**
+     * Patrones para textos dinámicos que mezclan números y nombres.
+     */
+    var PATRONES = [
+        [/^de (\d+) asientos disponibles$/, 'of $1 seats available'],
+        [/^(\d+) de (\d+)$/, '$1 of $2'],
+        [/^(\d+) \/ (\d+) ocupados$/, '$1 / $2 occupied'],
+        [/^(\d+) cupos libres$/, '$1 seats available'],
+        [/^(\d+) pasajeros$/, '$1 passengers'],
+        [/^(\d+) personas$/, '$1 people'],
+        [/^(\d+) asientos$/, '$1 seats'],
+        [/^(\d+) alumnos en (\d+) secciones$/, '$1 students in $2 sections'],
+        [/^(\d+) alumnos$/, '$1 students'],
+        [/^(\d+) ° año$/, '$1st year'],
+        [/^(.+) · Bus (\d+) de (\d+)$/, '$1 · Bus $2 of $3'],
+        [/^(\d+) bus\(es\) cubriendo (.+) el (.+)$/, '$1 bus(es) covering $2 on $3'],
+        [/^(\d+)% del padrón$/, '$1% of the registry'],
+        [/^(\d+) estudiantes · (\d+) acompañantes · (\d+) de personal$/, '$1 students · $2 companions · $3 staff'],
+        [/^Asiento (\d+)$/, 'Seat $1'],
+        [/^Bus (\d+)$/, 'Bus $1']
+    ];
+
+    // Remove the no-op placeholder pattern.
+    PATRONES = PATRONES.filter(function (item) { return item[1] !== null; });
+
+    // Remove the no-op placeholder pattern.
+    PATRONES = PATRONES.filter(function (item) { return item[1] !== null; });
 
     var prefijos = Object.keys(DICCIONARIO).filter(function (clave) {
         return clave.charAt(clave.length - 1) === '*';
@@ -712,6 +776,23 @@
             if (cuerpo.length > base.length && cuerpo.indexOf(base) === 0
                 && cuerpo.charAt(base.length) === ' ') {
                 return DICCIONARIO[base + '*'] + cuerpo.slice(base.length);
+            }
+        }
+
+        // Patrones dinámicos para textos con números y nombres.
+        for (var p = 0; p < PATRONES.length; p++) {
+            var patron = PATRONES[p][0];
+            var reemplazo = PATRONES[p][1];
+            var coincidencia = cuerpo.match(patron);
+
+            if (coincidencia) {
+                var resultado = reemplazo;
+
+                for (var g = 1; g < coincidencia.length; g++) {
+                    resultado = resultado.replace('$' + g, coincidencia[g]);
+                }
+
+                return resultado;
             }
         }
 

@@ -5,6 +5,56 @@ Todas las novedades de RideRoster se registran en este archivo.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el
 versionado se basa en [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.0.0] - 2026-11-04
+
+### Añadido
+- **Traducción completa al inglés**: todas las vistas, modales, avisos y contenido dinámico se traducen desde `i18n.js`, incluyendo el encabezado responsive.
+- **Número correlativo manual por persona**: al agregar un estudiante se ingresa manualmente su número; si viaja con encargado y/o compañeros de viaje, aparecen automáticamente los campos para el encargado del estudiante, cada compañero y el encargado de cada compañero.
+- **Columna N.º en la Lista de pasajeros** con los correlativos individuales; no aparece en el listado impreso/PDF.
+- **Encabezado responsive**: menú hamburguesa y sidebar desde 1400 px, con cierre por Escape/clic fuera, bloqueo de scroll y foco.
+- **Cierre automático de boletos** y bloqueo de inscripción tras el cierre.
+- Soporte de códigos generales con la regex `/^\d{1,2}[A-Za-z]G?\d{2}$/i`.
+
+### Cambiado
+- `pasajeros` y `companeros` incluyen campos `correlativo` y `correlativo_encargado`.
+- Migración automática a esquema versión 11.
+- La fecha del encabezado se oculta en escritorio cuando el temporizador es visible para evitar desbordes.
+
+### Corregido
+- Eliminados todos los ejemplos con el código real `2JG25`.
+- Validación y mensajes de API para los números correlativos.
+- Persistencia de correlativos en todos los flujos de alta, desborde y redistribución.
+
+## [1.2.0] - 2026-10-30
+
+### Añadido
+- **Compañeros de viaje con encargado individual**: cada compañero puede marcarse con
+  encargado mediante un checkbox en su chip; cuenta como 2 pasajes para costo y pago.
+- **Enumeración de compañeros** en la lista de pasajeros y el listado de la salida.
+
+### Corregido
+- Los compañeros de viaje ahora se visualizan en la lista de pasajeros y en el
+  listado de la salida, con su nombre.
+- El total recaudado suma el costo de los compañeros.
+- Error `count()` sobre valor nulo al cargar la información.
+
+## [1.1.1] - 2026-10-30
+
+### Cambiado
+- **Pagos automáticos**: al agregar un estudiante al viaje se registra automáticamente el
+  pago por el costo completo (estudiante y, si aplica, su encargado). Se elimina el
+  apartado independiente de «Pagos»; el monto cubierto sigue visible en la columna
+  «Pagado» de la lista de pasajeros.
+- **Encargados**: en el listado del bus el encargado aparece debajo del estudiante.
+- **Compañeros de viaje**: ahora se visualizan correctamente en el listado del bus.
+
+## [1.0.1] - 2026-10-30
+
+### Cambiado
+- **Nomenclatura**: «Comandos de Salvamento» pasa a «Personal de Asistencia» en código,
+  base de datos, vistas y documentación. La tabla `personal_salvamento` se renombra a
+  `personal_asistencia` (con migración automática).
+
 ## [1.0.0] - 2026-10-25
 
 Versión **1.0.0**: el sistema queda completo y estable. Se cierra el ciclo de desarrollo
@@ -138,7 +188,7 @@ Primera versión operativa del sistema: los módulos de **Inicio**, **Administra
 - **Viaje actual** con fecha, hora de salida, hora estimada de regreso, capacidad del
   autobús y barra de ocupación en vivo.
 - **Indicadores de gestión**: estudiantes inscritos, cupos disponibles, dinero recaudado
-  y personal a bordo (docentes y comandos de salvamento).
+  y personal a bordo (docentes y personal de asistencia).
 - **Historial de viajes** con el detalle de cada salida ya realizada y de los próximos
   viajes programados.
 - **Botón "Gestionar viaje"** con un panel completo para ajustar el viaje:
@@ -161,8 +211,8 @@ Primera versión operativa del sistema: los módulos de **Inicio**, **Administra
 
 #### Módulo Administración
 - **Paseos**: catálogo de destinos con nombre, destino, costo por persona, profesor a cargo,
-  descripción y personal de comandos de salvamento.
-- **Personal de salvamento** reutilizable entre paseos, con alta y baja desde la misma vista.
+  descripción y personal de asistencia.
+- **Personal de Asistencia** reutilizable entre paseos, con alta y baja desde la misma vista.
 - **Programación de viajes** a partir de un paseo: día, horarios, capacidad y notas.
   Los viajes programados aparecen de inmediato en la pestaña Inicio.
 - **Parámetros globales** editables: capacidad predeterminada del autobús (55), asientos
@@ -190,7 +240,7 @@ Primera versión operativa del sistema: los módulos de **Inicio**, **Administra
 #### Asignación de asientos
 - **Plano interactivo del autobús** con distribución 2+2, al estilo mapa de sala de cine:
   butacas libres, ocupadas y seleccionadas, más los dos asientos reservados al docente y
-  al comando de salvamento.
+  al personal de asistencia.
 - **Reubicación exacta**: se selecciona una persona y el asiento de destino, o se arrastra
   hasta la butaca. La persona queda **exactamente** en el asiento elegido; si el destino
   estaba ocupado, quien estaba ahí se desplaza un asiento hacia atrás y nadie se pierde.
@@ -271,7 +321,7 @@ Primera versión operativa del sistema: los módulos de **Inicio**, **Administra
 - **Herramienta de línea de comandos** `bin/rideroster` con los comandos `instalar`,
   `migrar`, `estado` y `ayuda`.
 - **Semilla de demostración** con 5 paseos, 7 viajes, 199 estudiantes, sus acompañantes,
-  pagos y el personal de salvamento.
+  pagos y el personal de asistencia.
 
 ### Cambiado
 - La compactación de asientos pasa de ser automática a ser explícita con el botón

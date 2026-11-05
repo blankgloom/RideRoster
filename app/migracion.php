@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 const PREFIJOS_CODIGO = ['2B', '3A', '3C', '2D', '1A', '3B', '4A', '2C'];
-const ESQUEMA_VERSION = 7;
+const ESQUEMA_VERSION = 11;
 
 const TABLAS_PRINCIPALES = ['paseos', 'viajes', 'pasajeros', 'companeros', 'pagos', 'parametros', 'alumnos', 'profesores', 'encargados', 'secciones'];
 
@@ -182,6 +182,10 @@ function aplicar_esquema_padron(): void
     }
 
     agregar_columna_si_falta('pasajeros', 'alumno_id', 'alumno_id INT NULL');
+    agregar_columna_si_falta('pasajeros', 'correlativo', 'correlativo VARCHAR(40) NULL');
+    agregar_columna_si_falta('pasajeros', 'correlativo_encargado', 'correlativo_encargado VARCHAR(40) NULL');
+    agregar_columna_si_falta('companeros', 'correlativo', 'correlativo VARCHAR(40) NULL');
+    agregar_columna_si_falta('companeros', 'correlativo_encargado', 'correlativo_encargado VARCHAR(40) NULL');
     agregar_columna_si_falta('paseos', 'profesor_id', 'profesor_id INT NULL');
     agregar_columna_si_falta('alumnos', 'seccion_id', 'seccion_id INT NULL');
 
@@ -368,6 +372,22 @@ function asignar_preferencias_demo(): void
     }
 }
 
+/**
+ * Renombra la tabla de personal de salvamento a personal de asistencia.
+ */
+function migrar_personal_salvamento_a_asistencia(): void
+{
+    if (!tabla_existe('personal_salvamento')) {
+        return;
+    }
+
+    if (tabla_existe('personal_asistencia')) {
+        return;
+    }
+
+    db()->exec('RENAME TABLE personal_salvamento TO personal_asistencia');
+}
+
 function aplicar_migraciones(bool $forzar = false): void
 {
     static $aplicadas = false;
@@ -392,6 +412,19 @@ function aplicar_migraciones(bool $forzar = false): void
             crear_tabla_asientos();
         }
 
+        migrar_personal_salvamento_a_asistencia();
+        agregar_columna_si_falta('companeros', 'con_encargado', 'con_encargado TINYINT(1) NOT NULL DEFAULT 0');
+        agregar_columna_si_falta('viajes', 'profesor_id', 'profesor_id INT NULL');
+        agregar_columna_si_falta('viajes', 'asientos_profesores', 'asientos_profesores INT NOT NULL DEFAULT 1');
+        // Tabla de vetados
+        db()->exec('CREATE TABLE IF NOT EXISTS vetados (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            alumno_id INT NOT NULL,
+            motivo VARCHAR(255) NULL,
+            fecha DATE NOT NULL,
+            UNIQUE KEY uq_vetados_alumno (alumno_id),
+            CONSTRAINT fk_vetados_alumno FOREIGN KEY (alumno_id) REFERENCES alumnos (id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
         aplicar_esquema_padron();
         aplicar_esquema_boletos();
 

@@ -6,7 +6,7 @@ function sembrar_datos(PDO $pdo): void
 {
     $parametros = [
         ['capacidad_bus', '55', 'Asientos totales del autobús'],
-        ['asientos_personal', '2', 'Asientos reservados al profesor y al comando de salvamento'],
+        ['asientos_personal', '2', 'Asientos reservados al profesor y al personal de asistencia'],
         ['orden_pasajeros', 'inscripcion', 'Los pasajeros se listan en el orden en que se registran'],
     ];
 
@@ -22,13 +22,13 @@ function sembrar_datos(PDO $pdo): void
     }
 
     $personal = [
-        ['Br. Roberto Renderos', 'Salvamento'],
-        ['Br. Milton Majada', 'Salvamento'],
+        ['Br. Roberto Renderos', 'Asistencia'],
+        ['Br. Milton Majada', 'Asistencia'],
         ['Lic. Milagros Zelaya', 'Enfermería'],
-        ['Sr. Elías Coreas', 'Salvamento'],
+        ['Sr. Elías Coreas', 'Asistencia'],
     ];
 
-    $sentencia = $pdo->prepare('INSERT INTO personal_salvamento (nombre, puesto) VALUES (:nombre, :puesto)');
+    $sentencia = $pdo->prepare('INSERT INTO personal_asistencia (nombre, puesto) VALUES (:nombre, :puesto)');
     $ids = [];
 
     foreach ($personal as $persona) {

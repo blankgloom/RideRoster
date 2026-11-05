@@ -311,16 +311,18 @@ function crear_bus_hermano(int $viajeOrigenId, array $opciones = []): int
         : $origen['hora_retorno'];
     $notas = array_key_exists('notas', $opciones) ? (string) $opciones['notas'] : (string) ($origen['notas'] ?? '');
 
-    $sentencia = db()->prepare('INSERT INTO viajes (paseo_id, fecha, hora_salida, hora_retorno, capacidad_bus, estado, notas)
-                                VALUES (:paseo, :fecha, :salida, :retorno, :capacidad, :estado, :notas)');
+    $sentencia = db()->prepare('INSERT INTO viajes (paseo_id, fecha, hora_salida, hora_retorno, capacidad_bus, profesor_id, asientos_profesores, estado, notas)
+                                VALUES (:paseo, :fecha, :salida, :retorno, :capacidad, :profesor, :asientos_prof, :estado, :notas)');
     $sentencia->execute([
-        ':paseo'     => (int) $origen['paseo_id'],
-        ':fecha'     => $fecha,
-        ':salida'    => $salida . ':00',
-        ':retorno'   => $retorno !== null && $retorno !== '' ? $retorno . ':00' : null,
-        ':capacidad' => $capacidad,
-        ':estado'    => 'programado',
-        ':notas'     => $notas !== '' ? $notas : null,
+        ':paseo'         => (int) $origen['paseo_id'],
+        ':fecha'         => $fecha,
+        ':salida'        => $salida . ':00',
+        ':retorno'       => $retorno !== null && $retorno !== '' ? $retorno . ':00' : null,
+        ':capacidad'     => $capacidad,
+        ':profesor'      => $origen['profesor_id'],
+        ':asientos_prof' => (int) ($origen['asientos_profesores'] ?? 1),
+        ':estado'        => 'programado',
+        ':notas'         => $notas !== '' ? $notas : null,
     ]);
 
     return (int) db()->lastInsertId();

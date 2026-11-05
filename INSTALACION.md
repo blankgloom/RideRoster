@@ -120,8 +120,8 @@ php bin/rideroster estado            # Muestra la conexión y el resumen de la b
 | `encargados` | Encargados del padrón, deduplicados por nombre, con su teléfono |
 | `profesores` | Catálogo de profesores con los campos del instituto, listos para elegirlos en un paseo |
 | `paseos` | Catálogo de destinos: nombre, destino, costo por persona, profesor a cargo |
-| `personal_salvamento` | Personal de comandos de salvamento reutilizable entre paseos |
-| `paseo_personal` | Relación entre un paseo y su personal de salvamento |
+| `personal_asistencia` | Personal de Asistencia reutilizable entre paseos |
+| `paseo_personal` | Relación entre un paseo y su personal de asistencia |
 | `viajes` | Viajes programados: fecha, horarios, capacidad del bus y estado |
 | `pasajeros` | Pasajeros inscritos en un viaje, enlazados a su alumno del padrón por código |
 | `pagos` | Pagos registrados por viaje y por estudiante |
@@ -202,7 +202,8 @@ datos de demostración.
 
 **"El código no cumple el formato requerido"**
 El código debe tener el formato `[Año][Sección][Número de lista]`, por ejemplo `2B03`:
-un o dos dígitos de año, una letra de sección y dos dígitos de número de lista.
+un o dos dígitos de año, una letra de sección y dos dígitos de número de lista. Los grupos
+generales llevan una `G` antes del número de lista.
 
 **Los cambios no aparecen en el navegador**
 Recarga con `Ctrl+F5` para descartar la caché del navegador.
